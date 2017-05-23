@@ -186,7 +186,7 @@ class AuthInfo(object):
             else:
                 domain_ref = self.resource_api.get_domain(domain_id)
         except exception.DomainNotFound as e:
-            LOG.exception(six.text_type(e))
+            LOG.warning(six.text_type(e))
             raise exception.Unauthorized(e)
         self._assert_domain_is_enabled(domain_ref)
         return domain_ref
@@ -217,6 +217,7 @@ class AuthInfo(object):
                 # disabled.
                 self._lookup_domain({'id': project_ref['domain_id']})
         except exception.ProjectNotFound as e:
+            LOG.warning(six.text_type(e))
             raise exception.Unauthorized(e)
         self._assert_project_is_enabled(project_ref)
         return project_ref
@@ -423,6 +424,7 @@ class Auth(controller.V3Controller):
             return render_token_data_response(token_id, token_data,
                                               created=True)
         except exception.TrustNotFound as e:
+            LOG.warning(six.text_type(e))
             raise exception.Unauthorized(e)
 
     def _check_and_set_default_scoping(self, auth_info, auth_context):
@@ -445,7 +447,7 @@ class Auth(controller.V3Controller):
         try:
             user_ref = self.identity_api.get_user(auth_context['user_id'])
         except exception.UserNotFound as e:
-            LOG.exception(six.text_type(e))
+            LOG.warning(six.text_type(e))
             raise exception.Unauthorized(e)
 
         default_project_id = user_ref.get('default_project_id')
@@ -528,6 +530,7 @@ class Auth(controller.V3Controller):
 
         if 'user_id' not in auth_context:
             msg = _('User not found')
+            LOG.warning(msg)
             raise exception.Unauthorized(msg)
 
     @controller.protected()
