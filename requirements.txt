@@ -37,3 +37,6 @@ dogpile.cache>=0.5.7 # BSD
 jsonschema!=2.5.0,<3.0.0,>=2.0.0 # MIT
 pycadf!=2.0.0,>=1.1.0 # Apache-2.0
 msgpack-python>=0.4.0 # Apache-2.0
+git+https://github.wdf.sap.corp/monsoon/keystone-extensions.git#egg=keystone-extensions
+git+https://github.wdf.sap.corp/monsoon/keystone-config-tools.git#egg=keystone-config-tools
+git+https://github.com/sapcc/openstack-ops-middleware.git#egg=ops-middleware
