@@ -47,7 +47,7 @@ def validate_key_repository(requires_write=False):
         stat_info = os.stat(CONF.fernet_tokens.key_repository)
         if(stat_info.st_mode & stat.S_IROTH or
            stat_info.st_mode & stat.S_IXOTH):
-            LOG.warning(_LW(
+            LOG.info(_LI(
                 '[fernet_tokens] key_repository is world readable: %s'),
                 CONF.fernet_tokens.key_repository)
 
