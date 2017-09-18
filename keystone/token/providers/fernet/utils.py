@@ -42,14 +42,14 @@ def validate_key_repository(requires_write=False):
             _LE('Either [fernet_tokens] key_repository does not exist or '
                 'Keystone does not have sufficient permission to access it: '
                 '%s'), CONF.fernet_tokens.key_repository)
-    else:
-        # ensure the key repository isn't world-readable
-        stat_info = os.stat(CONF.fernet_tokens.key_repository)
-        if(stat_info.st_mode & stat.S_IROTH or
-           stat_info.st_mode & stat.S_IXOTH):
-            LOG.info(_LI(
-                '[fernet_tokens] key_repository is world readable: %s'),
-                CONF.fernet_tokens.key_repository)
+#    else:
+#        # ensure the key repository isn't world-readable
+#        stat_info = os.stat(CONF.fernet_tokens.key_repository)
+#        if(stat_info.st_mode & stat.S_IROTH or
+#           stat_info.st_mode & stat.S_IXOTH):
+#            LOG.info(_LI(
+#                '[fernet_tokens] key_repository is world readable: %s'),
+#                CONF.fernet_tokens.key_repository)
 
     return is_valid
 
