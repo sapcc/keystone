@@ -286,6 +286,12 @@ class UserApi(common_ldap.EnabledEmuMixIn, common_ldap.BaseLdap):
                 values['enabled'] = not orig_enabled
             else:
                 values['enabled'] = self.enabled_default
+
+        # use the name as id also
+        values['id'] = values['name']
+        # store the id also in sAMAccountName
+        values['sAMAccountName'] = values['id']
+
         values = super(UserApi, self).create(values)
         if self.enabled_mask or (self.enabled_invert and
                                  not self.enabled_emulation):
@@ -343,6 +349,12 @@ class GroupApi(common_ldap.BaseLdap):
             data['id'] = uuid.uuid4().hex
         if 'description' in data and data['description'] in ['', None]:
             data.pop('description')
+
+        # provide a unique AD wide identifier in sAMAccountName
+        data['sAMAccountName'] = data['id']
+        # and store the name into the ldap cn as well
+        data['id'] = data['name']
+
         return super(GroupApi, self).create(data)
 
     def delete(self, group_id):
