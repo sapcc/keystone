@@ -105,6 +105,10 @@ class Identity(identity.IdentityDriverV8):
         if 'name' in user and old_obj.get('name') != user['name']:
             raise exception.Conflict(_('Cannot change user name'))
 
+        # force mod_replace in driver
+        if 'password' in user:
+            old_obj['password'] = 'fake'
+
         if self.user.enabled_mask:
             self.user.mask_enabled_attribute(user)
         elif self.user.enabled_invert and not self.user.enabled_emulation:
@@ -263,13 +267,14 @@ class UserApi(common_ldap.EnabledEmuMixIn, common_ldap.BaseLdap):
         return obj
 
     def mask_enabled_attribute(self, values):
-        value = values['enabled']
-        values.setdefault('enabled_nomask', int(self.enabled_default))
-        if value != ((values['enabled_nomask'] & self.enabled_mask) !=
-                     self.enabled_mask):
-            values['enabled_nomask'] ^= self.enabled_mask
-        values['enabled'] = values['enabled_nomask']
-        del values['enabled_nomask']
+        if 'enabled' in values:
+            value = values['enabled']
+            values.setdefault('enabled_nomask', int(self.enabled_default))
+            if value != ((values['enabled_nomask'] & self.enabled_mask) !=
+                         self.enabled_mask):
+                values['enabled_nomask'] ^= self.enabled_mask
+            values['enabled'] = values['enabled_nomask']
+            del values['enabled_nomask']
 
     def create(self, values):
         if self.enabled_mask:
