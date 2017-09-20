@@ -106,6 +106,10 @@ class Identity(base.IdentityDriverV8):
         if 'name' in user and old_obj.get('name') != user['name']:
             raise exception.Conflict(_('Cannot change user name'))
 
+        # force mod_replace for password changes
+        if 'password' in user:
+            old_obj['password'] = 'fake'
+
         if self.user.enabled_mask:
             self.user.mask_enabled_attribute(user)
         elif self.user.enabled_invert and not self.user.enabled_emulation:
@@ -119,9 +123,12 @@ class Identity(base.IdentityDriverV8):
         return self.user.get_filtered(user_id)
 
     def change_password(self, user_id, new_password):
-        raise exception.NotImplemented(
-            _('Self-service user password changes are not implemented for '
-              'LDAP.'))
+        old_obj = self.user.get(user_id)
+        old_obj['password'] = 'fake' # force mod_replace on password
+        user = {'password': new_password}
+        self.user.update(user_id, user, old_obj)
+        return self.user.get_filtered(user_id)
+
 
     def delete_user(self, user_id):
         msg = _DEPRECATION_MSG % "delete_user"
@@ -292,6 +299,12 @@ class UserApi(common_ldap.EnabledEmuMixIn, common_ldap.BaseLdap):
                 values['enabled'] = not orig_enabled
             else:
                 values['enabled'] = self.enabled_default
+
+        # use the name as id also
+        values['id'] = values['name']
+        # store the id also in sAMAccountName
+        values['sAMAccountName'] = values['id']
+
         values = super(UserApi, self).create(values)
         if self.enabled_mask or (self.enabled_invert and
                                  not self.enabled_emulation):
@@ -350,6 +363,12 @@ class GroupApi(common_ldap.BaseLdap):
             data['id'] = uuid.uuid4().hex
         if 'description' in data and data['description'] in ['', None]:
             data.pop('description')
+
+        # provide a unique AD wide identifier in sAMAccountName
+        data['sAMAccountName'] = data['id']
+        # and store the name into the ldap cn as well
+        data['id'] = data['name']
+
         return super(GroupApi, self).create(data)
 
     def delete(self, group_id):
