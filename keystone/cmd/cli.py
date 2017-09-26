@@ -295,6 +295,27 @@ class BootStrap(BaseApp):
                       'role': self.role_name,
                       'project': self.project_name})
 
+        # make the bootstrap user a default domain admin
+        try:
+            self.assignment_manager.get_grant(self.role_id, user_id=user['id'],
+                                              domain_id=default_domain['id'])
+            LOG.info(_LI('User %(username)s already has %(role)s on domain '
+                         '%(domain)s.'),
+                     {'username': self.username,
+                      'role': self.role_name,
+                      'domain': default_domain['id']})
+        except exception.RoleAssignmentNotFound:
+            self.assignment_manager.create_grant(
+                user_id=user['id'],
+                domain_id=default_domain['id'],
+                role_id=self.role_id
+            )
+            LOG.info(_LI('Granted %(role)s on domain %(domain)s to user'
+                         ' %(username)s.'),
+                     {'role': self.role_name,
+                      'domain': default_domain['id'],
+                      'username': self.username})
+
         if self.region_id:
             try:
                 self.catalog_manager.create_region(
