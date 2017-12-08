@@ -275,6 +275,11 @@ class V3TokenDataHelper(object):
         if (project['name'] == r.admin_project_name and
                 project['domain']['name'] == r.admin_project_domain_name):
             token_data['is_admin_project'] = True
+        # we need to support a fallback in the default domain during bootstrapping,
+        # where only the default domain exists
+        elif (project['name'] == r.bootstrap_admin_project_name and
+              project['domain']['name'] == r.bootstrap_admin_project_domain_name):
+            token_data['is_admin_project'] = True
 
     def _get_roles_for_user(self, user_id, domain_id, project_id):
         roles = []

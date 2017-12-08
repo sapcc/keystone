@@ -455,6 +455,16 @@ FILE_OPTIONS = {
                    'operations on remote services. Tokens scoped to '
                    'this project will contain the key/value '
                    '`is_admin_project=true`. Defaults to None.'),
+        cfg.StrOpt('bootstrap_admin_project_domain_name',
+                   help='Name of the domain that owns the '
+                        '`bootstrap_admin_project_name`. Defaults to Default.',
+                   default='Default'),
+        cfg.StrOpt('bootstrap_admin_project_name',
+                   help='Special bootstrap project for performing administrative '
+                        'operations on remote services. Tokens scoped to '
+                        'this project will contain the key/value '
+                        '`is_admin_project=true`. Defaults to admin.',
+                   default='admin'),
         cfg.StrOpt('project_name_url_safe',
                    choices=['off', 'new', 'strict'], default='off',
                    help='Whether the names of projects are restricted from '
