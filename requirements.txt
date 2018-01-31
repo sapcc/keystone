@@ -37,6 +37,6 @@ dogpile.cache>=0.5.7 # BSD
 jsonschema!=2.5.0,<3.0.0,>=2.0.0 # MIT
 pycadf!=2.0.0,>=1.1.0 # Apache-2.0
 msgpack-python>=0.4.0 # Apache-2.0
-python-ldap>=2.4:python_version=='2.7' # PSF
-ldappool>=1.0:python_version=='2.7' # MPL
+pyldap>=2.4.20:python_version=='2.7' # PSF
+ldappool>=2.0.0:python_version=='2.7' # MPL
 python-memcached>=1.56 # PSF
