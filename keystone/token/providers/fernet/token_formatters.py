@@ -175,10 +175,12 @@ class TokenFormatter(object):
         # characters. Even though Keystone isn't storing a Fernet token
         # anywhere, we can't say it isn't being stored somewhere else with
         # those kind of backend constraints.
-        if len(token) > 255:
+
+        # CCloud: it should check against the configured max_token_size IMHO
+        if len(token) > CONF.max_token_size:
             LOG.info(_LI('Fernet token created with length of %d '
-                         'characters, which exceeds 255 characters'),
-                     len(token))
+                         'characters, which exceeds %d characters'),
+                      (len(token), CONF.max_token_size))
 
         return token
 
