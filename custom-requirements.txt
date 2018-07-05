@@ -1,3 +1,5 @@
--e git+https://github.com/sapcc/raven-python.git#egg=raven
--e git+https://github.com/sapcc/openstack-ops-middleware.git#egg=ops-middleware
+git+https://github.com/sapcc/raven-python.git#egg=raven
+git+https://github.com/sapcc/openstack-ops-middleware.git#egg=ops-middleware
+git+https://github.com/sapcc/osprofiler.git@2eef34430671bac137a0e16d0d87197feb726464#egg=osprofiler
+#git+https://github.com/sapcc/osprofiler.git#egg=osprofiler
 -e git+https://github.wdf.sap.corp/monsoon/keystone-extensions.git@master#egg=keystone-extensions
