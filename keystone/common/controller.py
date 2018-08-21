@@ -204,10 +204,15 @@ def render_token_response_from_model(token, include_catalog=True):
         token_reference['token']['roles'] = token.roles
         ap_name = CONF.resource.admin_project_name
         ap_domain_name = CONF.resource.admin_project_domain_name
-        if ap_name and ap_domain_name:
+        # CCloud: we also support a bootstrap-project, acting as admin-project
+        bp_name = CONF.resource.bootstrap_project_name
+        bp_domain_name = CONF.resource.bootstrap_project_domain_name
+        if ap_name and ap_domain_name or bp_name and bp_domain_name:
             is_ap = (
-                token.project['name'] == ap_name and
-                ap_domain_name == token.project_domain['name']
+                (token.project['name'] == ap_name and
+                ap_domain_name == token.project_domain['name']) or
+                (token.project['name'] == bp_name and
+                 bp_domain_name == token.project_domain['name'])
             )
             token_reference['token']['is_admin_project'] = is_ap
     if include_catalog and not token.unscoped:
