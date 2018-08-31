@@ -66,6 +66,10 @@ _APP_MIDDLEWARE = (
     _Middleware(namespace='keystone.server_middleware',
                 ep='build_auth_context',
                 conf={}),
+    # CCloud extensions
+    _Middleware(namespace='raven',
+                ep='raven',
+                conf={'level': 'ERROR'}),
 )
 
 
