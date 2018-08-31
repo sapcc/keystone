@@ -68,6 +68,13 @@ _APP_MIDDLEWARE = (
     _Middleware(namespace='keystone.server_middleware',
                 ep='build_auth_context',
                 conf={}),
+    # CCloud - TODO: this is crap and needs to be configurable
+    _Middleware(namespace='watcher.middleware',
+                ep='watcher',
+                conf={'service_type': 'identity',
+                      'config_file': '/etc/keystone/watcher.yaml',
+                      'include_initiator_user_id_in_metric': 'true',
+                      'include_target_project_id_in_metric': 'false'}),
 )
 
 
