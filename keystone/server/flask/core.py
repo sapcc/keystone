@@ -12,12 +12,14 @@
 
 import collections
 import os
+import logging
 
 import oslo_i18n
 from oslo_log import log
 import stevedore
 from werkzeug.contrib import fixers
-
+# CCloud
+from raven.contrib.flask import Sentry
 
 # NOTE(dstanek): i18n.enable_lazy() must be called before
 # keystone.i18n._() is called to ensure it has the desired lazy lookup
@@ -66,10 +68,6 @@ _APP_MIDDLEWARE = (
     _Middleware(namespace='keystone.server_middleware',
                 ep='build_auth_context',
                 conf={}),
-    # CCloud extensions
-    _Middleware(namespace='raven',
-                ep='raven',
-                conf={'level': 'ERROR'}),
 )
 
 
@@ -130,6 +128,11 @@ def setup_app_middleware(app):
 
     # Apply werkzeug speficic middleware
     app.wsgi_app = fixers.ProxyFix(app.wsgi_app)
+
+    # CCloud
+    sentry = Sentry(app, logging=True, level=logging.ERROR)
+    sentry.init_app(app)
+
     return app
 
 
