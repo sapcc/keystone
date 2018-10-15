@@ -6,3 +6,4 @@ watcher-middleware
 git+https://github.wdf.sap.corp/monsoon/keystone-extensions.git@queens#egg=keystone-extensions
 # wg https://github.com/openstack/ldappool/commit/459000d7aa3fa1ace05c800ff1273b99fbd8babe
 git+https://github.com/openstack/ldappool.git#egg=ldappool
+git+https://github.com/sapcc/osprofiler.git@stable/queens-m3#egg=osprofiler
