@@ -66,7 +66,7 @@ _APP_MIDDLEWARE = (
                 ep='request_id',
                 conf={}),
     # CCloud - TODO: this is crap and needs to be configurable
-    _Middleware(namespace='lifesave.middleware',
+    _Middleware(namespace='lifesaver.middleware',
                 ep='lifesaver',
                 conf={}),
     _Middleware(namespace='keystone.server_middleware',
