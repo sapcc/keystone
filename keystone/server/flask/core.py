@@ -79,6 +79,12 @@ _APP_MIDDLEWARE = (
                       'config_file': '/etc/keystone/watcher.yaml',
                       'include_initiator_user_id_in_metric': 'true',
                       'include_target_project_id_in_metric': 'false'}),
+    _Middleware(namespace='sapcc_ratelimit.middleware',
+                ep='sapcc_ratelimit',
+                conf={'config_file': '/etc/keystone/ratelimit.yaml',
+                      'service_type': 'identity',
+                      'memcache_host': '',
+                      'memcache_port': '11211'})
 )
 
 
