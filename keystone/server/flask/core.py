@@ -141,8 +141,9 @@ def setup_app_middleware(app):
     app.wsgi_app = fixers.ProxyFix(app.wsgi_app)
 
     # CCloud
-    sentry = Sentry(app, logging=True, level=logging.ERROR)
-    sentry.init_app(app)
+    if os.environ.get('SENTRY_DSN', None):
+        sentry = Sentry(app, logging=True, level=logging.ERROR)
+        sentry.init_app(app)
 
     return app
 
