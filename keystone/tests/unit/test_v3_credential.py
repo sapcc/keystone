@@ -117,7 +117,7 @@ class CredentialTestCase(CredentialBaseTestCase):
         """Call ``GET  /credentials?type={type}``."""
         # The type ec2 was chosen, instead of a random string,
         # because the type must be in the list of supported types
-        ec2_credential = unit.new_credential_ref(user_id=uuid.uuid4().hex,
+        ec2_credential = unit.new_credential_ref(user_id=self.user['id'],
                                                  project_id=self.project_id,
                                                  type=CRED_TYPE_EC2)
 
@@ -146,9 +146,9 @@ class CredentialTestCase(CredentialBaseTestCase):
         user2_id = uuid.uuid4().hex
 
         # Creating credentials for two different users
-        credential_user1_ec2 = unit.new_credential_ref(user_id=user1_id,
+        credential_user1_ec2 = unit.new_credential_ref(user_id=self.user['id'],
                                                        type=CRED_TYPE_EC2)
-        credential_user1_cert = unit.new_credential_ref(user_id=user1_id)
+        credential_user1_cert = unit.new_credential_ref(user_id=self.user['id'])
         credential_user2_cert = unit.new_credential_ref(user_id=user2_id)
 
         PROVIDERS.credential_api.create_credential(
@@ -158,12 +158,12 @@ class CredentialTestCase(CredentialBaseTestCase):
         PROVIDERS.credential_api.create_credential(
             credential_user2_cert['id'], credential_user2_cert)
 
-        r = self.get('/credentials?user_id=%s&type=ec2' % user1_id)
+        r = self.get('/credentials?user_id=%s&type=ec2' % self.user['id'])
         self.assertValidCredentialListResponse(r, ref=credential_user1_ec2)
         self.assertThat(r.result['credentials'], matchers.HasLength(1))
         cred = r.result['credentials'][0]
         self.assertEqual(CRED_TYPE_EC2, cred['type'])
-        self.assertEqual(user1_id, cred['user_id'])
+        self.assertEqual(self.user['id'], cred['user_id'])
 
     def test_create_credential(self):
         """Call ``POST /credentials``."""
@@ -366,13 +366,11 @@ class CredentialSelfServiceTestCase(CredentialBaseTestCase):
 
         # set the self-service credential policies
         self_service_credential_policies = {
-            "identity:create_credential": "user_id:%(credential.user_id)s",
-            "identity:list_credentials": "user_id:%(user_id)s",
-            "identity:get_credential": "user_id:%(target.credential.user_id)s",
-            "identity:update_credential":
-                "user_id:%(target.credential.user_id)s",
-            "identity:delete_credential":
-                "user_id:%(target.credential.user_id)s"
+            "identity:create_credential": "user_id:%(target.credential.user_id)s",
+            "identity:list_credentials":  "user_id:%(target.credential.user_id)s",
+            "identity:get_credential":    "user_id:%(target.credential.user_id)s",
+            "identity:update_credential": "user_id:%(target.credential.user_id)s",
+            "identity:delete_credential": "user_id:%(target.credential.user_id)s"
         }
         self._set_policy(self_service_credential_policies)
 
@@ -401,6 +399,23 @@ class CredentialSelfServiceTestCase(CredentialBaseTestCase):
         )
 
         r = self.get('/credentials?user_id=%s' % self.user['id'])
+        self.assertValidCredentialListResponse(r, ref=self.credential)
+        for cred in r.result['credentials']:
+            self.assertEqual(self.user['id'], cred['user_id'])
+
+    def test_list_credentials(self):
+        """Call ``GET  /credentials?user_id={user_id}``."""
+        self.config_fixture.config(group='oslo_policy', enforce_scope=True)
+        credential = unit.new_credential_ref(user_id=uuid.uuid4().hex)
+        PROVIDERS.credential_api.create_credential(
+            credential['id'], credential
+        )
+        credential = unit.new_credential_ref(user_id=uuid.uuid4().hex)
+        PROVIDERS.credential_api.create_credential(
+            credential['id'], credential
+        )
+
+        r = self.get('/credentials')
         self.assertValidCredentialListResponse(r, ref=self.credential)
         for cred in r.result['credentials']:
             self.assertEqual(self.user['id'], cred['user_id'])
