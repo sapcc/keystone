@@ -33,6 +33,9 @@ RULE_TRUST_OWNER = 'user_id:%(trust.trustor_user_id)s'
 
 rules = [
     policy.RuleDefault(
+        name='cloud_admin',
+        check_str='role:admin and is_admin_project:True'),
+    policy.RuleDefault(
         name='admin_required',
         check_str='role:admin or is_admin:1'),
     policy.RuleDefault(
