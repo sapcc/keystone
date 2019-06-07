@@ -112,7 +112,7 @@ class Manager(manager.Manager):
         ref.pop('encrypted_blob', None)
         ref['blob'] = credential['blob']
         notifications.Audit.created(
-            self._APP_CRED,
+            self._CRED,
             credential['id'],
             initiator)
         return ref
@@ -149,3 +149,23 @@ class Manager(manager.Manager):
         else:
             ref['blob'] = existing_blob
         return ref
+
+    def delete_credential(self, credential_id,
+                                      initiator=None):
+        with sql.session_for_write() as session:
+            ref = self._get_credential(session, credential_id)
+            session.delete(ref)
+        notifications.Audit.deleted(
+            self._CRED, credential_id, initiator)
+
+    def _delete_credentials_for_project(self, project_id):
+        with sql.session_for_write() as session:
+            query = session.query(CredentialModel)
+            query = query.filter_by(project_id=project_id)
+            query.delete()
+
+    def _delete_credentials_for_user(self, user_id):
+        with sql.session_for_write() as session:
+            query = session.query(CredentialModel)
+            query = query.filter_by(user_id=user_id)
+            query.delete()
