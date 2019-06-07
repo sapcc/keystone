@@ -157,15 +157,3 @@ class Manager(manager.Manager):
             session.delete(ref)
         notifications.Audit.deleted(
             self._CRED, credential_id, initiator)
-
-    def _delete_credentials_for_project(self, project_id):
-        with sql.session_for_write() as session:
-            query = session.query(CredentialModel)
-            query = query.filter_by(project_id=project_id)
-            query.delete()
-
-    def _delete_credentials_for_user(self, user_id):
-        with sql.session_for_write() as session:
-            query = session.query(CredentialModel)
-            query = query.filter_by(user_id=user_id)
-            query.delete()
