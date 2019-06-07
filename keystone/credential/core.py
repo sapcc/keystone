@@ -154,11 +154,11 @@ class Manager(manager.Manager):
                                     initiator=None):
         """Delete a credential.
 
-        :param str application_credential_id: Application Credential ID
+        :param str credential_id: Credential ID
         :param initiator: CADF initiator
 
-        :raises keystone.exception.ApplicationCredentialNotFound: If the
-            application credential doesn't exist.
+        :raises keystone.exception.CredentialNotFound: If the
+            credential doesn't exist.
         """
         self.driver.delete_credential(credential_id)
         self.get_credential.invalidate(self, credential_id)
