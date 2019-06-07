@@ -151,9 +151,17 @@ class Manager(manager.Manager):
         return ref
 
     def delete_credential(self, credential_id,
-                                      initiator=None):
-        with sql.session_for_write() as session:
-            ref = self._get_credential(session, credential_id)
-            session.delete(ref)
+                                    initiator=None):
+        """Delete a credential.
+
+        :param str application_credential_id: Application Credential ID
+        :param initiator: CADF initiator
+
+        :raises keystone.exception.ApplicationCredentialNotFound: If the
+            application credential doesn't exist.
+        """
+        self.driver.delete_credential(credential_id)
+        self.get_credential.invalidate(self, credential_id)
+
         notifications.Audit.deleted(
             self._CRED, credential_id, initiator)
