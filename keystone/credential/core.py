@@ -39,6 +39,8 @@ class Manager(manager.Manager):
     driver_namespace = 'keystone.credential'
     _provides_api = 'credential_api'
 
+    _CRED = 'credential'
+
     def __init__(self):
         super(Manager, self).__init__(CONF.credential.driver)
 
@@ -104,7 +106,7 @@ class Manager(manager.Manager):
         return self._decrypt_credential(credential)
 
     def create_credential(self, credential_id, credential,
-                                      initiator=None):
+                          initiator=None):
         """Create a credential."""
         credential_copy = self._encrypt_credential(credential)
         ref = self.driver.create_credential(credential_id, credential_copy)
@@ -113,7 +115,7 @@ class Manager(manager.Manager):
         ref['blob'] = credential['blob']
         notifications.Audit.created(
             self._CRED,
-            credential['id'],
+            credential_id,
             initiator)
         return ref
 
@@ -151,7 +153,7 @@ class Manager(manager.Manager):
         return ref
 
     def delete_credential(self, credential_id,
-                                    initiator=None):
+                          initiator=None):
         """Delete a credential.
 
         :param str credential_id: Credential ID
