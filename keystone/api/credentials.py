@@ -138,7 +138,7 @@ class CredentialResource(ks_flask.ResourceBase):
         trust_id = getattr(self.oslo_context, 'trust_id', None)
         ref = self._assign_unique_id(
             self._normalize_dict(credential), trust_id=trust_id)
-        ref = PROVIDERS.credential_api.create_credential(ref['id'], ref)
+        ref = PROVIDERS.credential_api.create_credential(ref['id'], ref, initiator=self.audit_initiator)
         return self.wrap_member(ref), http_client.CREATED
 
     def patch(self, credential_id):
@@ -164,7 +164,7 @@ class CredentialResource(ks_flask.ResourceBase):
         )
 
         return (PROVIDERS.credential_api.delete_credential(credential_id),
-                http_client.NO_CONTENT)
+                http_client.NO_CONTENT, initiator=self.audit_initiator)
 
 
 class CredentialAPI(ks_flask.APIBase):
