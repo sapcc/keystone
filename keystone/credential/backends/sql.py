@@ -84,7 +84,7 @@ class Credential(base.CredentialDriverBase):
                     setattr(ref, attr, getattr(new_credential, attr))
             ref.extra = new_credential.extra
             return ref.to_dict()
-
+    
     def delete_credential(self, credential_id):
         with sql.session_for_write() as session:
             ref = self._get_credential(session, credential_id)
