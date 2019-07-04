@@ -161,7 +161,7 @@ class CredentialResource(ks_flask.ResourceBase):
         # Delete credentials
         ENFORCER.enforce_call(
             action='identity:delete_credential',
-            build_target=_build_target_enforcement
+            target_attr=_build_target_enforcement()
         )
 
         return (PROVIDERS.credential_api.delete_credential(credential_id,

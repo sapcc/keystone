@@ -163,7 +163,6 @@ class Manager(manager.Manager):
             credential doesn't exist.
         """
         self.driver.delete_credential(credential_id)
-        self.get_credential.invalidate(self, credential_id)
 
         notifications.Audit.deleted(
             self._CRED, credential_id, initiator)
