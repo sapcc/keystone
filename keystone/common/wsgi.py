@@ -146,9 +146,9 @@ class Application(BaseApplication):
 
         try:
             result = method(req, **params)
-        except exception.Unauthorized as e:  
+        except exception.Unauthorized as e:
             # ccloud: log original message, regardless of insecure_debug setting
-            if e.message != None:
+            if e.message is not None:
                 message = e.message
             else:
                 message = e
@@ -161,10 +161,15 @@ class Application(BaseApplication):
                                     context=req.context_dict,
                                     user_locale=best_match_language(req))
         except exception.Error as e:
-            if isinstance(e, exception.UnexpectedError):
-                LOG.exception(six.text_type(e))
+            # ccloud: log original message, regardless of insecure_debug setting
+            if e.message is not None:
+                message = e.message
             else:
-                LOG.warning(six.text_type(e))
+                message = six.text_type(e)
+            if isinstance(e, exception.UnexpectedError):
+                LOG.exception(message)
+            else:
+                LOG.warning(message)
             return render_exception(e,
                                     context=req.context_dict,
                                     user_locale=best_match_language(req))
