@@ -81,9 +81,14 @@ def _handle_keystone_exception(error):
 
     # Handle logging
     if isinstance(error, exception.Unauthorized):
+        # ccloud: log original message, regardless of insecure_debug setting
+        if error.message is not None:
+            message = error.message
+        else:
+            message = error
         LOG.warning(
             "Authorization failed. %(exception)s from %(remote_addr)s",
-            {'exception': error, 'remote_addr': flask.request.remote_addr})
+            {'exception': message, 'remote_addr': flask.request.remote_addr})
     elif isinstance(error, exception.UnexpectedError):
         LOG.exception(six.text_type(error))
     else:
