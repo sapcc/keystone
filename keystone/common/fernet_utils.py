@@ -61,14 +61,15 @@ class FernetUtils(object):
                 'access it: %(key_repo)s',
                 {'key_repo': self.key_repository,
                  'config_group': self.config_group})
-        else:
-            # ensure the key repository isn't world-readable
-            stat_info = os.stat(self.key_repository)
-            if(stat_info.st_mode & stat.S_IROTH or
-               stat_info.st_mode & stat.S_IXOTH):
-                LOG.warning(
-                    'key_repository is world readable: %s',
-                    self.key_repository)
+        # CCloud: we don't care, since k8s volumes from secrets can't be configured to be read-only
+        #else:
+        #    # ensure the key repository isn't world-readable
+        #    stat_info = os.stat(self.key_repository)
+        #    if(stat_info.st_mode & stat.S_IROTH or
+        #       stat_info.st_mode & stat.S_IXOTH):
+        #        LOG.warning(
+        #            'key_repository is world readable: %s',
+        #            self.key_repository)
 
         return is_valid
 

@@ -72,6 +72,8 @@ class Error(Exception):
     code = None
     title = None
     message_format = None
+    # ccloud: keep the original message for logging, regardless of insecure_debug setting
+    message = None
 
     def __init__(self, message=None, **kwargs):
         try:
@@ -263,16 +265,18 @@ class SecurityError(Error):
         return self
 
     def _build_message(self, message, **kwargs):
-        """Only returns detailed messages in insecure_debug mode."""
-        if message and CONF.insecure_debug:
-            if isinstance(message, six.string_types):
-                # Only do replacement if message is string. The message is
-                # sometimes a different exception or bytes, which would raise
-                # TypeError.
-                message = _format_with_unicode_kwargs(message, kwargs)
-            return _('%(message)s %(amendment)s') % {
-                'message': message,
-                'amendment': self.amendment}
+        # ccloud: always keep original message for logging, regardless of insecure_debug setting
+        if message:
+            self.message = message
+            if CONF.insecure_debug:
+                if isinstance(message, six.string_types):
+                    # Only do replacement if message is string. The message is
+                    # sometimes a different exception or bytes, which would raise
+                    # TypeError.
+                    message = _format_with_unicode_kwargs(message, kwargs)
+                return _('%(message)s %(amendment)s') % {
+                    'message': message,
+                    'amendment': self.amendment}
 
         return _format_with_unicode_kwargs(self.message_format, kwargs)
 

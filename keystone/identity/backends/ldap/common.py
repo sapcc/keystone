@@ -1529,7 +1529,8 @@ class BaseLdap(object):
         attrs = list(set(([self.id_attr] +
                           list(self.attribute_mapping.values()) +
                           list(self.extra_attr_mapping.keys()))))
-        if hints.limit:
+        # ccloud: only limit if all filters have been satisfied and the contoller does not need to filter
+        if hints.limit and not len(hints.filters):
             sizelimit = hints.limit['limit']
             res = self._ldap_get_limited(self.tree_dn,
                                          self.LDAP_SCOPE,
