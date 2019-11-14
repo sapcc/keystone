@@ -45,6 +45,7 @@ from keystone.tests.common import auth as common_auth
 from keystone.tests import unit
 from keystone.tests.unit import ksfixtures
 from keystone.tests.unit import test_v3
+from keystone.tests.unit import utils as test_utils
 
 
 CONF = keystone.conf.CONF
@@ -1850,6 +1851,28 @@ class TokenAPITests(object):
 
         self._create_implied_role_shows_in_v3_token(True)
 
+    @test_utils.wip(
+        "Skipped until system-scoped support expanding implied roles",
+        expected_exception=matchers._impl.MismatchError,
+        bug='#1788694'
+    )
+    def test_create_implied_role_shows_in_v3_system_token(self):
+        self.config_fixture.config(group='token', infer_roles=True)
+        PROVIDERS.assignment_api.create_system_grant_for_user(
+            self.user['id'], self.role['id']
+        )
+
+        token_id = self.get_system_scoped_token()
+        r = self.get('/auth/tokens', headers={'X-Subject-Token': token_id})
+        token_roles = r.result['token']['roles']
+
+        prior = token_roles[0]['id']
+        self._create_implied_role(prior)
+
+        r = self.get('/auth/tokens', headers={'X-Subject-Token': token_id})
+        token_roles = r.result['token']['roles']
+        self.assertEqual(2, len(token_roles))
+
     def test_group_assigned_implied_role_shows_in_v3_token(self):
         self.config_fixture.config(group='token', infer_roles=True)
         is_domain = False
@@ -2371,6 +2394,22 @@ class TokenAPITests(object):
             self._validate_token(token,
                                  allow_expired=True,
                                  expected_status=http_client.NOT_FOUND)
+
+    def test_system_scoped_token_works_with_domain_specific_drivers(self):
+        self.config_fixture.config(
+            group='identity', domain_specific_drivers_enabled=True
+        )
+
+        PROVIDERS.assignment_api.create_system_grant_for_user(
+            self.user['id'], self.role['id']
+        )
+
+        token_id = self.get_system_scoped_token()
+        headers = {'X-Auth-Token': token_id}
+
+        app = self.loadapp()
+        with app.test_client() as c:
+            c.get('/v3/users', headers=headers)
 
 
 class TokenDataTests(object):
@@ -5391,6 +5430,38 @@ class ApplicationCredentialAuth(test_v3.RestfulTestCase):
         auth_data = self.build_authentication_request(
             app_cred_id=app_cred_ref['id'], secret=app_cred_ref['secret'])
         self.v3_create_token(auth_data, expected_status=http_client.NOT_FOUND)
+
+    def test_application_credential_through_group_membership(self):
+        user1 = unit.create_user(
+            PROVIDERS.identity_api, domain_id=self.domain_id
+        )
+
+        group1 = unit.new_group_ref(domain_id=self.domain_id)
+        group1 = PROVIDERS.identity_api.create_group(group1)
+
+        PROVIDERS.identity_api.add_user_to_group(
+            user1['id'], group1['id']
+        )
+        PROVIDERS.assignment_api.create_grant(
+            self.role_id, group_id=group1['id'], project_id=self.project_id
+        )
+
+        app_cred = {
+            'id': uuid.uuid4().hex,
+            'name': uuid.uuid4().hex,
+            'secret': uuid.uuid4().hex,
+            'user_id': user1['id'],
+            'project_id': self.project_id,
+            'description': uuid.uuid4().hex,
+            'roles': [{'id': self.role_id}]
+        }
+
+        app_cred_ref = self.app_cred_api.create_application_credential(
+            app_cred)
+
+        auth_data = self.build_authentication_request(
+            app_cred_id=app_cred_ref['id'], secret=app_cred_ref['secret'])
+        self.v3_create_token(auth_data, expected_status=http_client.CREATED)
 
     def test_application_credential_cannot_scope(self):
         app_cred = self._make_app_cred()
