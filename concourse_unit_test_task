@@ -6,6 +6,6 @@ apt-get install -y build-essential python-pip python-dev python3-dev git libpcre
 pip install tox && \
 pip install six && \
 /etc/init.d/memcached start && \
-git clone -b stable/rocky-m3 --single-branch https://github.com/sapcc/keystone.git && \
+git clone -b stable/rocky-m3 --single-branch https://github.com/sapcc/keystone.git --depth=1 && \
 cd keystone && \
 tox -e py27 -- --black-regex "keystone.tests.unit.test_policy.PolicyJsonTestCase.test_all_targets_documented|keystone.tests.unit.test_hacking_checks.TestBlockCommentsBeginWithASpace.test"
