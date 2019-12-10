@@ -29,6 +29,7 @@ import keystone.server
 from keystone.server.flask import application
 from keystone.server.flask.request_processing.middleware import auth_context
 from keystone.server.flask.request_processing.middleware import url_normalize
+from keystone import exception
 
 # CCloud
 from raven.contrib.flask import Sentry
@@ -168,8 +169,12 @@ def setup_app_middleware(app):
 
     # CCloud
     if os.environ.get('SENTRY_DSN', None):
-        sentry = Sentry(app, logging=True, level=logging.ERROR)
-        sentry.init_app(app)
+        app.config['SENTRY_CONFIG'] = {
+            'ignore_exceptions': [exception.NotFound],
+        }
+
+        sentry = Sentry()
+        sentry.init_app(app, logging=True, level=logging.ERROR)
 
     return app
 
