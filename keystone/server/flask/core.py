@@ -174,7 +174,7 @@ def setup_app_middleware(app):
         }
 
         sentry = Sentry()
-        sentry.init_app(app, logging=True, level=logging.ERROR)
+        sentry.init_app(app, logging=True)
 
     return app
 
