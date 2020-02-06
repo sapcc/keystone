@@ -104,6 +104,17 @@ Default `publisher_id` for outgoing notifications. If left undefined, Keystone
 will default to using the server's host name.
 """))
 
+default_tag = cfg.MultiStrOpt(
+    'default_tag',
+    default=[],
+    help=utils.fmt("""
+Default `tag`(s) for newly created projects. If left undefined, Keystone will
+create projects without an initial tag. This field can be set multiple times in
+order to set multiple default tags, for example:
+default_tag=tag_0
+default_tag=tag_1
+"""))
+
 notification_format = cfg.StrOpt(
     'notification_format',
     default='cadf',
@@ -147,6 +158,7 @@ ALL_OPTS = [
     strict_password_check,
     insecure_debug,
     default_publisher_id,
+    default_tag,
     notification_format,
     notification_opt_out,
 ]
