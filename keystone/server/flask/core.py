@@ -79,8 +79,19 @@ _APP_MIDDLEWARE = (
                       'config_file': '/etc/keystone/watcher.yaml',
                       'include_initiator_user_id_in_metric': 'true',
                       'include_target_project_id_in_metric': 'false'}),
+    # CCloud: add rate_limit middleware
+    _Middleware(namespace='rate_limit.middleware',
+                ep='rate_limit',
+                conf={'config_file': '/etc/keystone/ratelimit.yaml',
+                      'service_type': 'identity',
+                      'rate_limit_by': 'initiator_project_id',
+                      'max_sleep_time_seconds': '20',
+                      'clock_accuracy': '1ns',
+                      'log_sleep_time_seconds': '10',
+                      'backend_host': 'keystone-sapcc-ratelimit-redis',
+                      'backend_port': '6379',
+                      'backend_timeout_seconds': '20'}),
 )
-
 
 def _get_config_files(env=None):
     if env is None:
