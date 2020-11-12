@@ -4,6 +4,6 @@ git+https://github.com/sapcc/openstack-watcher-middleware.git#egg=watcher-middle
 git+https://github.com/funkyHat/py-radius@install_requires#egg=py-radius
 git+https://github.wdf.sap.corp/monsoon/keystone-extensions.git@rocky#egg=keystone-extensions
 
-# needed for osprofiler
+# osprofiler backend
 redis
 jaeger-client
