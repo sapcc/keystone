@@ -881,6 +881,7 @@ class Manager(manager.Manager):
     # NOTE(henry-nash): list_projects_in_domain is actually an internal method
     # and not exposed via the API.  Therefore there is no need to support
     # driver hints for it.
+    @MEMOIZE
     def list_projects_in_domain(self, domain_id):
         return self.driver.list_projects_in_domain(domain_id)
 
