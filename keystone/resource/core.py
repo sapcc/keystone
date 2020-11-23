@@ -242,6 +242,7 @@ class Manager(manager.Manager):
             self.get_project.set(ret, self, project_id)
             self.get_project_by_name.set(ret, self, ret['name'],
                                          ret['domain_id'])
+            self.list_projects_in_domain.invalidate(self, ret['domain_id'])
 
         assignment.COMPUTED_ASSIGNMENTS_REGION.invalidate()
 
@@ -386,6 +387,9 @@ class Manager(manager.Manager):
             self.get_project.invalidate(self, project_id)
             self.get_project_by_name.invalidate(self, original_project['name'],
                                                 original_project['domain_id'])
+            self.list_projects_in_domain.invalidate(
+                self, original_project['domain_id']
+            )
             if ('domain_id' in project and
                project['domain_id'] != original_project['domain_id']):
                 # If the project's domain_id has been updated, invalidate user
@@ -455,6 +459,7 @@ class Manager(manager.Manager):
             self.get_project.invalidate(self, project_id)
             self.get_project_by_name.invalidate(self, project['name'],
                                                 project['domain_id'])
+            self.list_projects_in_domain.invalidate(self, project['domain_id'])
             PROVIDERS.assignment_api.delete_project_assignments(project_id)
             # Invalidate user role assignments cache region, as it may
             # be caching role assignments where the target is
@@ -881,6 +886,7 @@ class Manager(manager.Manager):
     # NOTE(henry-nash): list_projects_in_domain is actually an internal method
     # and not exposed via the API.  Therefore there is no need to support
     # driver hints for it.
+    @MEMOIZE
     def list_projects_in_domain(self, domain_id):
         return self.driver.list_projects_in_domain(domain_id)
 
