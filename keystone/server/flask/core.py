@@ -86,7 +86,7 @@ _APP_MIDDLEWARE = (
                       'service_type': 'identity',
                       'rate_limit_by': 'initiator_project_id',
                       'backend_host': 'keystone-sapcc-rate-limit',
-                      'backend_timeout_seconds': '20'}),
+                      'backend_timeout_seconds': '1'}),
 )
 
 
