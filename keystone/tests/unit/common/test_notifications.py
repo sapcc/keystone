@@ -804,7 +804,7 @@ class CADFNotificationsForPCIDSSEvents(BaseNotificationTest):
         password = uuid.uuid4().hex
         new_password = uuid.uuid4().hex
         expected_responses = [AssertionError, AssertionError, AssertionError,
-                              exception.AccountLocked]
+                              exception.Unauthorized]
         user_ref = unit.new_user_ref(domain_id=self.domain_id,
                                      password=password)
         user_ref = PROVIDERS.identity_api.create_user(user_ref)
@@ -1158,7 +1158,7 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
                     'typeURI': 'service/security/account/user',
                     'host': {'address': 'localhost'},
                     'id': 'openstack:0a90d95d-582c-4efb-9cbc-e2ca7ca9c341',
-                    'name': u'bccc2d9bfc2a46fd9e33bcf82f0b5c21'
+                    'username': u'admin'
                 },
                 'target': {
                     'typeURI': 'service/security/account/user',
@@ -1203,6 +1203,17 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
         initiator = note['initiator']
         self.assertEqual(self.user_id, initiator.id)
         self.assertEqual(self.user_id, initiator.user_id)
+
+    def test_initiator_always_contains_username(self):
+        # Clear notifications
+        while self._notifications:
+            self._notifications.pop()
+
+        self.get_scoped_token()
+        self.assertEqual(len(self._notifications), 1)
+        note = self._notifications.pop()
+        initiator = note['initiator']
+        self.assertEqual(self.user['name'], initiator.username)
 
     def test_v3_authenticate_user_name_and_domain_id(self):
         user_id = self.user_id
