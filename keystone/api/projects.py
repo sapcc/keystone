@@ -20,6 +20,7 @@ import http.client
 from keystone.common import json_home
 from keystone.common import provider_api
 from keystone.common import rbac_enforcer
+from keystone.common import utils
 from keystone.common import validation
 import keystone.conf
 from keystone import exception
@@ -132,7 +133,16 @@ class ProjectResource(ks_flask.ResourceBase):
             if t in flask.request.args:
                 hints.add_filter(t, flask.request.args[t])
         refs = PROVIDERS.resource_api.list_projects(hints=hints)
-        if self.oslo_context.domain_id:
+
+        # the entries should not be filtered by domain_id if domain list was
+        # requested; otherwise all domains are getting filtered out
+        try:
+            is_domain_requested = utils.attr_as_boolean(
+                flask.request.args['is_domain'])
+        except KeyError:
+            is_domain_requested = False
+
+        if self.oslo_context.domain_id and not is_domain_requested:
             domain_id = self.oslo_context.domain_id
             filtered_refs = [
                 ref for ref in refs if ref['domain_id'] == domain_id
