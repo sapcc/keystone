@@ -97,7 +97,10 @@ class ResourceBase(ks_flask.ResourceBase):
 
         # Load the credential from the backend
         credential_id = utils.hash_access_key(credentials['access'])
-        cred = PROVIDERS.credential_api.get_credential(credential_id)
+        try:
+            cred = PROVIDERS.credential_api.get_credential(credential_id)
+        except ks_exceptions.CredentialNotFound:
+            cred = None
         if not cred or cred['type'] != CRED_TYPE_EC2:
             raise ks_exceptions.Unauthorized(_('EC2 access key not found.'))
 
