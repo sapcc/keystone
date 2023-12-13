@@ -88,8 +88,10 @@ def _handle_keystone_exception(error):
         LOG.warning(
             "Authorization failed. %(exception)s from %(remote_addr)s",
             {'exception': error, 'remote_addr': flask.request.remote_addr})
-    else:
+    elif isinstance(error, exception.UnexpectedError):
         LOG.exception(str(error))
+    else:
+        LOG.warning(str(error))
 
     # Render the exception to something user "friendly"
     error_message = error.args[0]
