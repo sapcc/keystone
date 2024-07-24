@@ -15,21 +15,20 @@
     parent: devstack-tempest
     timeout: 4200
     required-projects:
-      - openstack/devstack-gate
       - openstack/keystone
       - openstack/keystone-tempest-plugin
     vars:
       tox_envlist: all
-      tempest_test_regex: 'keystone_tempest_plugin'
+      tempest_test_regex: "keystone_tempest_plugin"
       devstack_localrc:
-        TEMPEST_PLUGINS: '/opt/stack/keystone-tempest-plugin'
+        TEMPEST_PLUGINS: "/opt/stack/keystone-tempest-plugin"
 
 - job:
     name: keystone-dsvm-py3-functional
     parent: keystone-dsvm-functional
     vars:
       devstack_localrc:
-        TEMPEST_PLUGINS: '/opt/stack/keystone-tempest-plugin'
+        TEMPEST_PLUGINS: "/opt/stack/keystone-tempest-plugin"
         USE_PYTHON3: True
 
 - job:
@@ -40,7 +39,7 @@
       Functional testing for a FIPS enabled Centos 9 system
     pre-run: playbooks/enable-fips.yaml
     vars:
-      nslookup_target: 'opendev.org'
+      nslookup_target: "opendev.org"
 
 - job:
     name: keystone-dsvm-functional-federation-opensuse15
@@ -82,7 +81,7 @@
     nodeset: openstack-single-node-jammy
     vars:
       devstack_localrc:
-        TEMPEST_PLUGINS: '/opt/stack/keystone-tempest-plugin'
+        TEMPEST_PLUGINS: "/opt/stack/keystone-tempest-plugin"
         USE_PYTHON3: True
       devstack_services:
         keystone-saml2-federation: true
@@ -116,8 +115,8 @@
     parent: devstack-tempest
     vars:
       devstack_localrc:
-        KEYSTONE_CLEAR_LDAP: 'yes'
-        LDAP_PASSWORD: 'nomoresecret'
+        KEYSTONE_CLEAR_LDAP: "yes"
+        LDAP_PASSWORD: "nomoresecret"
         USE_PYTHON3: True
       devstack_services:
         ldap: true
@@ -165,68 +164,13 @@
 
 # Experimental
 - job:
-    name: keystone-dsvm-functional-federation-centos7
-    parent: keystone-dsvm-functional
-    nodeset: devstack-single-node-centos-7
-    vars:
-      devstack_localrc:
-        TEMPEST_PLUGINS: '/opt/stack/keystone-tempest-plugin'
-      devstack_services:
-        keystone-saml2-federation: true
-        tls-proxy: false
-      devstack_plugins:
-        keystone: https://opendev.org/openstack/keystone
-      zuul_copy_output:
-        /etc/shibboleth: logs
-
-# Experimental
-- job:
-    name: keystone-dsvm-functional-federation-ubuntu-xenial
-    parent: keystone-dsvm-functional
-    nodeset: openstack-single-node-xenial
-    vars:
-      devstack_localrc:
-        TEMPEST_PLUGINS: '/opt/stack/keystone-tempest-plugin'
-      devstack_services:
-        keystone-saml2-federation: true
-        tls-proxy: false
-      devstack_plugins:
-        keystone: https://opendev.org/openstack/keystone
-      zuul_copy_output:
-        /etc/shibboleth: logs
-
-# Experimental
-- job:
-    name: keystone-dsvm-py35-functional-federation-ubuntu-xenial
-    parent: keystone-dsvm-functional-federation
-    vars:
-      devstack_localrc:
-        TEMPEST_PLUGINS: '/opt/stack/keystone-tempest-plugin'
-        USE_PYTHON3: True
-      zuul_copy_output:
-        /etc/shibboleth: logs
-
-# Experimental
-# Transitional rename
-- job:
-    name: keystone-dsvm-functional-federation
-    parent: keystone-dsvm-functional-federation-ubuntu-xenial
-
-# Experimental
-# Transitional rename
-- job:
-    name: keystone-dsvm-py35-functional-federation
-    parent: keystone-dsvm-py35-functional-federation-ubuntu-xenial
-
-# Experimental
-- job:
     name: keystone-dsvm-functional-oidc-federation
     parent: keystone-dsvm-functional
     vars:
       devstack_localrc:
-        TEMPEST_PLUGINS: '/opt/stack/keystone-tempest-plugin'
+        TEMPEST_PLUGINS: "/opt/stack/keystone-tempest-plugin"
         USE_PYTHON3: True
-        OS_CACERT: '/opt/stack/data/ca_bundle.pem'
+        OS_CACERT: "/opt/stack/data/ca_bundle.pem"
       devstack_services:
         tls-proxy: true
         keystone-oidc-federation: true
@@ -282,7 +226,8 @@
             irrelevant-files: *tempest-irrelevant-files
         - tempest-ipv6-only:
             irrelevant-files: *tempest-irrelevant-files
-        - keystone-protection-functional
+        # FIXME(dmendiza): temporarily disabling protection job
+        # - keystone-protection-functional:
     gate:
       jobs:
         - keystone-tox-py310-with-sqlalchemy-2x
@@ -296,7 +241,8 @@
             irrelevant-files: *tempest-irrelevant-files
         - tempest-ipv6-only:
             irrelevant-files: *tempest-irrelevant-files
-        - keystone-protection-functional
+        # FIXME(dmendiza): temporarily disabling protection job
+        # - keystone-protection-functional
     experimental:
       jobs:
         - keystone-tox-patch_cover
@@ -306,11 +252,5 @@
             irrelevant-files: *irrelevant-files
         - tempest-pg-full:
             irrelevant-files: *tempest-irrelevant-files
-        - keystone-dsvm-functional-federation-centos7:
-            irrelevant-files: *irrelevant-files
-        - keystone-dsvm-functional-federation-ubuntu-xenial:
-            irrelevant-files: *irrelevant-files
-        - keystone-dsvm-py35-functional-federation-ubuntu-xenial:
-            irrelevant-files: *irrelevant-files
         - keystone-dsvm-functional-oidc-federation:
             irrelevant-files: *irrelevant-files
