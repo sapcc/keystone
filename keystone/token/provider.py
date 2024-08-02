@@ -280,11 +280,16 @@ class Manager(manager.Manager):
             token_time = timeutils.normalize_time(
                 timeutils.parse_isotime(token.expires_at))
             if (app_cred['expires_at'] is not None) and (
-                    token_time > app_cred['expires_at']):
-                token.expires_at = app_cred['expires_at'].isoformat()
-                LOG.debug('Resetting token expiration to the application'
-                          ' credential expiration: %s',
-                          app_cred['expires_at'].isoformat())
+                token_time > app_cred['expires_at']
+            ):
+                token.expires_at = utils.isotime(
+                    app_cred['expires_at'], subsecond=True
+                )
+                LOG.debug(
+                    'Resetting token expiration to the application'
+                    ' credential expiration: %s',
+                    token.expires_at,
+                )
 
         token_id, issued_at = self.driver.generate_id_and_issued_at(token)
         token.mint(token_id, issued_at)
