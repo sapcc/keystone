@@ -124,6 +124,27 @@ update user API. This feature is disabled by default. This feature is only
 applicable with the `sql` backend for the `[identity] driver`.
 """))
 
+invalid_auth_include_in_notifications = cfg.BoolOpt(
+    'invalid_auth_include_in_notifications',
+    default=False,
+    help=utils.fmt("""
+TBD
+"""))
+
+invalid_auth_hashing_module = cfg.StrOpt(
+    'invalid_auth_hashing_module',
+    default="keystone.common.password_hashing",
+    help=utils.fmt("""
+TBD
+"""))
+
+invalid_auth_first_hashed_chars = cfg.IntOpt(
+    'invalid_auth_first_hashed_chars',
+    default=1,
+    help=utils.fmt("""
+TBD
+"""))
+
 
 GROUP_NAME = __name__.split('.')[-1]
 ALL_OPTS = [
@@ -135,7 +156,10 @@ ALL_OPTS = [
     minimum_password_age,
     password_regex,
     password_regex_description,
-    change_password_upon_first_use
+    change_password_upon_first_use,
+    invalid_auth_include_in_notifications,
+    invalid_auth_hashing_module,
+    invalid_auth_first_hashed_chars
 ]
 
 

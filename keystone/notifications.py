@@ -22,7 +22,7 @@ import socket
 import flask
 from oslo_log import log
 import oslo_messaging
-from oslo_utils import reflection
+from oslo_utils import importutils, reflection
 import pycadf
 from pycadf import cadftaxonomy as taxonomy
 from pycadf import cadftype
@@ -591,11 +591,29 @@ class CadfNotificationWrapper(object):
                 if isinstance(ex, exception.AccountLocked):
                     raise exception.Unauthorized
                 raise
-            except Exception:
+            except Exception as ex:
+                notification_kwargs = {}
+
+                if (isinstance(ex, AssertionError)
+                    and CONF.security_compliance.invalid_auth_include_in_notifications):
+                    # Authentication failed because of invalid username or
+                    # password, so we include partial pasword hash to aid
+                    # bruteforce attacks recognition
+                    hashing_module = importutils.import_module(
+                        CONF.security_compliance.invalid_auth_hashing_module
+                    )
+
+                    notification_kwargs["details"] = dict(
+                        partial_auth_hash=hashing_module.generate_partial_auth_hash(
+                            kwargs, initiator,
+                        ),
+                    )
+
                 # For authentication failure send a CADF event as well
                 _send_audit_notification(self.action, initiator,
                                          taxonomy.OUTCOME_FAILURE,
-                                         target, self.event_type)
+                                         target, self.event_type,
+                                         **notification_kwargs)
                 raise
             else:
                 _send_audit_notification(self.action, initiator,

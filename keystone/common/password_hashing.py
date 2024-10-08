@@ -13,7 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import base64
+from datetime import datetime
+import hashlib
 import itertools
+import json
 
 from oslo_log import log
 import passlib.hash
@@ -141,3 +145,45 @@ def hash_password(password):
             params['salt_size'] = CONF.identity.salt_bytesize
 
     return hasher.using(**params).hash(password_utf8)
+
+def generate_partial_auth_hash(auth, initiator=None):
+    """Generates partial auth hash.
+
+    The hash generated is of size `blake2b.MAX_DIGEST_SIZE` (64 bytes), base64
+    encoded (as 172 characters) and truncated to
+    `CONF.security_compliance.invalid_auth_password_hash_first_characters`"""
+
+    # https://docs.python.org/3/library/hashlib.html#blake2
+    hasher = hashlib.blake2b
+
+    # for password `auth = {'password': '...'}`, but stringify the whole dict
+    # to potentially support other methods too
+    data = bytes(json.dumps(auth), "utf-8")
+
+    # take current YYYYMM as salt, truncated to maximum supported length
+    # https://docs.python.org/3/library/hashlib.html#randomized-hashing
+    current_month = datetime.now().strftime("%Y%m")
+    salt = bytes(current_month, "utf-8")[:hasher.SALT_SIZE]
+
+    person=b''
+    if initiator is not None:
+        # make hash personalized, to avoid disclosing that different users may have
+        # similar hash and thus passwords, truncated to maximum supported length
+        # https://docs.python.org/3/library/hashlib.html#personalization
+        person = bytes(initiator.user_id, "utf-8")[:hasher.PERSON_SIZE]
+
+    hashed = hasher(
+        data,
+        digest_size=hasher.MAX_DIGEST_SIZE,
+        salt=salt,
+        person=person,
+    ).hexdigest()
+
+    # encode to utilize more characters to reduce collisions when further
+    # truncating
+    encoded = base64.b64encode(bytes(hashed, "utf-8")).decode("utf-8")
+
+    max_chars = CONF.security_compliance.invalid_auth_first_hashed_chars
+    truncated = encoded[:max_chars]
+
+    return truncated
