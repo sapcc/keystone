@@ -22,7 +22,7 @@ import socket
 import flask
 from oslo_log import log
 import oslo_messaging
-from oslo_utils import importutils, reflection
+from oslo_utils import reflection
 import pycadf
 from pycadf import cadftaxonomy as taxonomy
 from pycadf import cadftype
@@ -33,6 +33,7 @@ from pycadf import reason
 from pycadf import resource
 
 from keystone.common import context
+from keystone.common import password_hashing
 from keystone.common import provider_api
 from keystone.common import utils
 import keystone.conf
@@ -599,15 +600,10 @@ class CadfNotificationWrapper(object):
                     # Authentication failed because of invalid username or
                     # password, so we include partial pasword hash to aid
                     # bruteforce attacks recognition
-                    hashing_module = importutils.import_module(
-                        CONF.security_compliance.invalid_auth_hashing_module
-                    )
-
+                    partial_auth_hash = password_hashing.generate_partial_auth_hash(
+                        kwargs, initiator)
                     notification_kwargs["details"] = dict(
-                        partial_auth_hash=hashing_module.generate_partial_auth_hash(
-                            kwargs, initiator,
-                        ),
-                    )
+                        partial_auth_hash=partial_auth_hash)
 
                 # For authentication failure send a CADF event as well
                 _send_audit_notification(self.action, initiator,

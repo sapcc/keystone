@@ -131,11 +131,11 @@ invalid_auth_include_in_notifications = cfg.BoolOpt(
 TBD
 """))
 
-invalid_auth_hashing_module = cfg.StrOpt(
-    'invalid_auth_hashing_module',
-    default="keystone.common.password_hashing",
+invalid_auth_hash_algorithm = cfg.StrOpt(
+    'invalid_auth_hash_algorithm',
+    default="blake2b",
     help=utils.fmt("""
-TBD
+https://docs.python.org/3/library/hashlib.html
 """))
 
 invalid_auth_first_hashed_chars = cfg.IntOpt(
@@ -158,7 +158,7 @@ ALL_OPTS = [
     password_regex_description,
     change_password_upon_first_use,
     invalid_auth_include_in_notifications,
-    invalid_auth_hashing_module,
+    invalid_auth_hash_algorithm,
     invalid_auth_first_hashed_chars
 ]
 

@@ -18,6 +18,7 @@ from datetime import datetime
 import hashlib
 import itertools
 import json
+import operator
 
 from oslo_log import log
 import passlib.hash
@@ -149,35 +150,60 @@ def hash_password(password):
 def generate_partial_auth_hash(auth, initiator=None):
     """Generates partial auth hash.
 
-    The hash generated is of size `blake2b.MAX_DIGEST_SIZE` (64 bytes), base64
-    encoded (as 172 characters) and truncated to
-    `CONF.security_compliance.invalid_auth_password_hash_first_characters`"""
+    Only algorithms in hashlib.algorithms_guaranteed
+    (https://docs.python.org/3/library/hashlib.html#hashlib.algorithms_guaranteed)
+    are supported, set using
+    `CONF.security_compliance.invalid_auth_hash_algorithm`.
 
-    # https://docs.python.org/3/library/hashlib.html#blake2
-    hasher = hashlib.blake2b
+    The obtained hash is then base64 encoded, producing strings of size 44-684
+    characters long for hashes of 16-256 bytes correspondingly (depends on
+    algorithm used), from which
+    `CONF.security_compliance.invalid_auth_password_hash_first_characters`
+    first characters are eventually returned.
+    """
+
+    algo = CONF.security_compliance.invalid_auth_hash_algorithm
+    if algo not in hashlib.algorithms_guaranteed:
+        raise RuntimeError(
+            _('Hash Algorithm %s not supported') %
+            CONF.security_compliance.invalid_auth_hash_algorithm)
+
+    args = []
+    kwargs = {}
 
     # for password `auth = {'password': '...'}`, but stringify the whole dict
     # to potentially support other methods too
     data = bytes(json.dumps(auth), "utf-8")
+    args.append(data)
 
-    # take current YYYYMM as salt, truncated to maximum supported length
-    # https://docs.python.org/3/library/hashlib.html#randomized-hashing
-    current_month = datetime.now().strftime("%Y%m")
-    salt = bytes(current_month, "utf-8")[:hasher.SALT_SIZE]
+    if algo in ("blake2b", "blake2s"):
+        # https://docs.python.org/3/library/hashlib.html#blake2
 
-    person=b''
-    if initiator is not None:
-        # make hash personalized, to avoid disclosing that different users may have
-        # similar hash and thus passwords, truncated to maximum supported length
-        # https://docs.python.org/3/library/hashlib.html#personalization
-        person = bytes(initiator.user_id, "utf-8")[:hasher.PERSON_SIZE]
+        # take current YYYYMM as salt, truncated to maximum supported length
+        # https://docs.python.org/3/library/hashlib.html#randomized-hashing
+        current_month = datetime.now().strftime("%Y%m")
+        salt_size = operator.attrgetter(algo)(hashlib).SALT_SIZE
+        kwargs["salt"] = bytes(current_month, "utf-8")[:salt_size]
 
-    hashed = hasher(
-        data,
-        digest_size=hasher.MAX_DIGEST_SIZE,
-        salt=salt,
-        person=person,
-    ).hexdigest()
+        if initiator is not None:
+            # personalize hash to the use case, truncated to maximum supported
+            # length
+            # https://docs.python.org/3/library/hashlib.html#personalization
+            # TODO: use something more unique to the deployment. Perhaps
+            # publisher_id?
+            person_size = operator.attrgetter(algo)(hashlib).PERSON_SIZE
+            type_uri = getattr(initiator, "typeURI", "typeURI")
+            kwargs["person"] = bytes(type_uri, "utf-8")[:person_size]
+
+    # equivalent to hashlib.<algo>(*args, **kwargs)
+    hasher = operator.methodcaller(algo, *args, **kwargs)(hashlib)
+
+    if algo in ("shake_128", "shake_256"):
+        # https://docs.python.org/3/library/hashlib.html#shake-variable-length-digests
+        digest_length = int(algo[6:])
+        hashed = hasher.hexdigest(digest_length)
+    else:
+        hashed = hasher.hexdigest()
 
     # encode to utilize more characters to reduce collisions when further
     # truncating
