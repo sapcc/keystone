@@ -593,23 +593,24 @@ class CadfNotificationWrapper(object):
                     raise exception.Unauthorized
                 raise
             except Exception as ex:
-                notification_kwargs = {}
+                audit_kwargs = {}
 
                 if (isinstance(ex, AssertionError)
-                    and CONF.security_compliance.invalid_auth_include_in_notifications):
-                    # Authentication failed because of invalid username or
-                    # password, so we include partial pasword hash to aid
-                    # bruteforce attacks recognition
-                    partial_auth_hash = password_hashing.generate_partial_auth_hash(
-                        kwargs, initiator)
-                    notification_kwargs["details"] = dict(
-                        partial_auth_hash=partial_auth_hash)
+                    and kwargs.get("password") is not None
+                    and CONF.security_compliance.bad_password_include_in_notifications):
+                    # Authentication failed because of invalid password, so we
+                    # include partial pasword hash to aid bruteforce attacks
+                    # recognition
+                    partial_password_hash = password_hashing.generate_partial_password_hash(
+                        kwargs["password"], person=self.event_type)
+                    audit_kwargs["details"] = dict(
+                        partial_password_hash=partial_password_hash)
 
                 # For authentication failure send a CADF event as well
                 _send_audit_notification(self.action, initiator,
                                          taxonomy.OUTCOME_FAILURE,
                                          target, self.event_type,
-                                         **notification_kwargs)
+                                         **audit_kwargs)
                 raise
             else:
                 _send_audit_notification(self.action, initiator,

@@ -17,7 +17,6 @@ import base64
 from datetime import datetime
 import hashlib
 import itertools
-import json
 import operator
 
 from oslo_log import log
@@ -147,34 +146,32 @@ def hash_password(password):
 
     return hasher.using(**params).hash(password_utf8)
 
-def generate_partial_auth_hash(auth, initiator=None):
-    """Generates partial auth hash.
+def generate_partial_password_hash(password, **kwargs):
+    """Generates partial password hash for e.g. reporting purposes.
 
-    Only algorithms in hashlib.algorithms_guaranteed
+    For hashing only algorithms from hashlib.algorithms_guaranteed
     (https://docs.python.org/3/library/hashlib.html#hashlib.algorithms_guaranteed)
-    are supported, set using
-    `CONF.security_compliance.invalid_auth_hash_algorithm`.
+    are supported, set via
+    `CONF.security_compliance.bad_password_hash_algorithm`.
 
-    The obtained hash is then base64 encoded, producing strings of size 44-684
-    characters long for hashes of 16-256 bytes correspondingly (depends on
-    algorithm used), from which
-    `CONF.security_compliance.invalid_auth_password_hash_first_characters`
+    The produced password hash is then base64 encoded, generating strings of
+    size 44-684 characters long (for hashes of 16-256 bytes correspondingly,
+    depending on algorithm used), from which
+    `CONF.security_compliance.bad_password_password_hash_first_characters`
     first characters are eventually returned.
     """
 
-    algo = CONF.security_compliance.invalid_auth_hash_algorithm
+    algo = CONF.security_compliance.bad_password_hash_algorithm
     if algo not in hashlib.algorithms_guaranteed:
         raise RuntimeError(
             _('Hash Algorithm %s not supported') %
-            CONF.security_compliance.invalid_auth_hash_algorithm)
+            CONF.security_compliance.bad_password_hash_algorithm)
 
-    args = []
-    kwargs = {}
+    hasher_args = []
+    hasher_kwargs = {}
 
-    # for password `auth = {'password': '...'}`, but stringify the whole dict
-    # to potentially support other methods too
-    data = bytes(json.dumps(auth), "utf-8")
-    args.append(data)
+    data = bytes(password, "utf-8")
+    hasher_args.append(data)
 
     if algo in ("blake2b", "blake2s"):
         # https://docs.python.org/3/library/hashlib.html#blake2
@@ -183,20 +180,18 @@ def generate_partial_auth_hash(auth, initiator=None):
         # https://docs.python.org/3/library/hashlib.html#randomized-hashing
         current_month = datetime.now().strftime("%Y%m")
         salt_size = operator.attrgetter(algo)(hashlib).SALT_SIZE
-        kwargs["salt"] = bytes(current_month, "utf-8")[:salt_size]
+        hasher_kwargs["salt"] = bytes(current_month, "utf-8")[:salt_size]
 
-        if initiator is not None:
-            # personalize hash to the use case, truncated to maximum supported
-            # length
-            # https://docs.python.org/3/library/hashlib.html#personalization
-            # TODO: use something more unique to the deployment. Perhaps
-            # publisher_id?
-            person_size = operator.attrgetter(algo)(hashlib).PERSON_SIZE
-            type_uri = getattr(initiator, "typeURI", "typeURI")
-            kwargs["person"] = bytes(type_uri, "utf-8")[:person_size]
+        # personalize hash to the use case, truncated to maximum supported
+        # length
+        # https://docs.python.org/3/library/hashlib.html#personalization
+        person = CONF.security_compliance.bad_password_blake2_person \
+            or kwargs.get("person", "")
+        person_size = operator.attrgetter(algo)(hashlib).PERSON_SIZE
+        hasher_kwargs["person"] = bytes(person, "utf-8")[:person_size]
 
-    # equivalent to hashlib.<algo>(*args, **kwargs)
-    hasher = operator.methodcaller(algo, *args, **kwargs)(hashlib)
+    # equivalent to hashlib.<algo>(*hasher_args, **hasher_kwargs)
+    hasher = operator.methodcaller(algo, *hasher_args, **hasher_kwargs)(hashlib)
 
     if algo in ("shake_128", "shake_256"):
         # https://docs.python.org/3/library/hashlib.html#shake-variable-length-digests
@@ -209,7 +204,7 @@ def generate_partial_auth_hash(auth, initiator=None):
     # truncating
     encoded = base64.b64encode(bytes(hashed, "utf-8")).decode("utf-8")
 
-    max_chars = CONF.security_compliance.invalid_auth_first_hashed_chars
+    max_chars = CONF.security_compliance.bad_password_first_hashed_chars
     truncated = encoded[:max_chars]
 
     return truncated
