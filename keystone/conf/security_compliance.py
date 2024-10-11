@@ -141,25 +141,24 @@ bad_password_hash_algorithm = cfg.StrOpt(
     default="blake2b",
     help=utils.fmt("""
 If `bad_password_include_in_notifications` set to true, causes the hashing
-function to use a particular hash algorithm from
-`hashlib.algorithms_guaranteed`
-(https://docs.python.org/3/library/hashlib.html#hashlib.algorithms_guaranteed).
-The set of supported algorithms could change over time and circumstances. Some
-potential choices are:
-{'blake2b', 'blake2s', 'md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha3_224',
-'sha3_256', 'sha3_384', 'sha3_512', 'sha512', 'shake_128', 'shake_256'}
+function to use a provided hash algorithm from `hashlib`
+(https://docs.python.org/3/library/hashlib.html). The set of supported
+algorithms could change over time and circumstances. Some potential choices
+are:
+{'blake2b', 'sha224', 'sha256', 'sha384', 'sha512', 'sha3_224', 'sha3_256',
+'sha3_384', 'sha3_512', 'shake_128', 'shake_256'}
 """))
 
-bad_password_blake2_person = cfg.StrOpt(
-    'bad_password_blake2_person',
+bad_password_hash_personalization = cfg.StrOpt(
+    'bad_password_hash_personalization',
+    secret=True,
     help=utils.fmt("""
-If `bad_password_include_in_notifications` set to true, and
-`bad_password_hash_algorithm` is one from BLAKE2 family, causes the hashing
-function to use the `person` parameter with the value provided -
-https://docs.python.org/3/library/hashlib.html#personalization. An example
-value could be `bad_password_blake2_person = $default_publisher_id`, though it
-should be ensured that the value remains constant and unique for the whole
-installation. Limited to 16/8 bytes for blake2b/blake2s correspondingly.
+If `bad_password_include_in_notifications` set to true, applies personalization
+salt when generating password hashes to make them distinct from any other
+Keystone installations out there
+(https://docs.python.org/3/library/hashlib.html#personalization). Should be
+some unique static (also possibly random) value specific to the current
+installation. 16 bytes (128 bits) or more is generally sufficient.
 """))
 
 bad_password_first_hashed_chars = cfg.IntOpt(
@@ -168,6 +167,7 @@ bad_password_first_hashed_chars = cfg.IntOpt(
     help=utils.fmt("""
 If `bad_password_include_in_notifications` set to true, defines the number of
 first characters of password hash that will be included in notifications.
+Should be the least reasonable value.
 """))
 
 
@@ -184,7 +184,7 @@ ALL_OPTS = [
     change_password_upon_first_use,
     bad_password_include_in_notifications,
     bad_password_hash_algorithm,
-    bad_password_blake2_person,
+    bad_password_hash_personalization,
     bad_password_first_hashed_chars
 ]
 

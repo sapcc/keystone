@@ -602,7 +602,7 @@ class CadfNotificationWrapper(object):
                     # include partial pasword hash to aid bruteforce attacks
                     # recognition
                     partial_password_hash = password_hashing.generate_partial_password_hash(
-                        kwargs["password"], person=self.event_type)
+                        kwargs["password"])
                     audit_kwargs["details"] = dict(
                         partial_password_hash=partial_password_hash)
 

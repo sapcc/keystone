@@ -14,10 +14,8 @@
 #    under the License.
 
 import base64
-from datetime import datetime
 import hashlib
 import itertools
-import operator
 
 from oslo_log import log
 import passlib.hash
@@ -149,9 +147,8 @@ def hash_password(password):
 def generate_partial_password_hash(password, **kwargs):
     """Generates partial password hash for e.g. reporting purposes.
 
-    For hashing only algorithms from hashlib.algorithms_guaranteed
-    (https://docs.python.org/3/library/hashlib.html#hashlib.algorithms_guaranteed)
-    are supported, set via
+    Hash algorithms from `hashlib`
+    (https://docs.python.org/3/library/hashlib.html) are supported, set via
     `CONF.security_compliance.bad_password_hash_algorithm`.
 
     The produced password hash is then base64 encoded, generating strings of
@@ -161,48 +158,24 @@ def generate_partial_password_hash(password, **kwargs):
     first characters are eventually returned.
     """
 
+    salt = CONF.security_compliance.bad_password_hash_personalization \
+        or kwargs.get("salt")
+    if salt is None:
+        raise RuntimeError(_('Hash Personalization value has to be provided'))
+
     algo = CONF.security_compliance.bad_password_hash_algorithm
-    if algo not in hashlib.algorithms_guaranteed:
-        raise RuntimeError(
-            _('Hash Algorithm %s not supported') %
-            CONF.security_compliance.bad_password_hash_algorithm)
+    data = bytes(password + salt, "utf-8")
+    hasher = getattr(hashlib, algo)(data)
 
-    hasher_args = []
-    hasher_kwargs = {}
-
-    data = bytes(password, "utf-8")
-    hasher_args.append(data)
-
-    if algo in ("blake2b", "blake2s"):
-        # https://docs.python.org/3/library/hashlib.html#blake2
-
-        # take current YYYYMM as salt, truncated to maximum supported length
-        # https://docs.python.org/3/library/hashlib.html#randomized-hashing
-        current_month = datetime.now().strftime("%Y%m")
-        salt_size = operator.attrgetter(algo)(hashlib).SALT_SIZE
-        hasher_kwargs["salt"] = bytes(current_month, "utf-8")[:salt_size]
-
-        # personalize hash to the use case, truncated to maximum supported
-        # length
-        # https://docs.python.org/3/library/hashlib.html#personalization
-        person = CONF.security_compliance.bad_password_blake2_person \
-            or kwargs.get("person", "")
-        person_size = operator.attrgetter(algo)(hashlib).PERSON_SIZE
-        hasher_kwargs["person"] = bytes(person, "utf-8")[:person_size]
-
-    # equivalent to hashlib.<algo>(*hasher_args, **hasher_kwargs)
-    hasher = operator.methodcaller(algo, *hasher_args, **hasher_kwargs)(hashlib)
-
-    if algo in ("shake_128", "shake_256"):
+    digest_args = []
+    if algo.startswith("shake_"):
         # https://docs.python.org/3/library/hashlib.html#shake-variable-length-digests
-        digest_length = int(algo[6:])
-        hashed = hasher.hexdigest(digest_length)
-    else:
-        hashed = hasher.hexdigest()
+        digest_args.append(128)
+    hashed = hasher.digest(*digest_args)
 
     # encode to utilize more characters to reduce collisions when further
     # truncating
-    encoded = base64.b64encode(bytes(hashed, "utf-8")).decode("utf-8")
+    encoded = base64.b64encode(hashed).decode("utf-8")
 
     max_chars = CONF.security_compliance.bad_password_first_hashed_chars
     truncated = encoded[:max_chars]
