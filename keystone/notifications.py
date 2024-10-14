@@ -24,6 +24,7 @@ from oslo_log import log
 import oslo_messaging
 from oslo_utils import reflection
 import pycadf
+from pycadf import attachment
 from pycadf import cadftaxonomy as taxonomy
 from pycadf import cadftype
 from pycadf import credential
@@ -603,8 +604,12 @@ class CadfNotificationWrapper(object):
                     # recognition
                     partial_password_hash = password_hashing.generate_partial_password_hash(
                         kwargs["password"])
-                    audit_kwargs["details"] = dict(
-                        partial_password_hash=partial_password_hash)
+                    attachments = audit_kwargs.get("attachments", [])
+                    attachments.append(attachment.Attachment(
+                        typeURI="mime:text/plain",
+                        content=partial_password_hash,
+                        name="partial_password_hash"))
+                    audit_kwargs["attachments"] = attachments
 
                 # For authentication failure send a CADF event as well
                 _send_audit_notification(self.action, initiator,
@@ -760,7 +765,7 @@ class _CatalogHelperObj(provider_api.ProviderAPIMixin, object):
 
 
 def _send_audit_notification(action, initiator, outcome, target,
-                             event_type, reason=None, **kwargs):
+                             event_type, reason=None, attachments=[], **kwargs):
     """Send CADF notification to inform observers about the affected resource.
 
     This method logs an exception when sending the notification fails.
@@ -776,6 +781,7 @@ def _send_audit_notification(action, initiator, outcome, target,
         key-value pairs to the CADF event.
     :param reason: Reason for the notification which contains the response
         code and message description
+    :param attachments: Array of Attachment objects
     """
     if _check_notification_opt_out(event_type, outcome):
         return
@@ -804,6 +810,9 @@ def _send_audit_notification(action, initiator, outcome, target,
 
     if service_id is not None:
         event.observer.id = service_id
+
+    for attachment in attachments:
+        event.add_attachment(attachment)
 
     for key, value in kwargs.items():
         setattr(event, key, value)
