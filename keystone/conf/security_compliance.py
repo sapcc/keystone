@@ -127,19 +127,23 @@ applicable with the `sql` backend for the `[identity] driver`.
 bad_password_include_in_notifications = cfg.BoolOpt(
     'bad_password_include_in_notifications',
     default=False,
-    help=utils.fmt("""
+    help=utils.fmt(
+        """
 If set to true, enriches `identity.authenticate.failure` audit notifications
-with partial password hash, that could be further used to distinguish
+with partial bad password hash, that could be further used to distinguish
 bruteforce attacks from e.g. external user automations that did not timely
 update rotated password. Additional configuration parameters are available
 using other `bad_password_*` configuration entires, that only take effect when
 `bad_password_include_in_notifications` is set to true.
-"""))
+"""
+    ),
+)
 
 bad_password_hash_algorithm = cfg.StrOpt(
     'bad_password_hash_algorithm',
     default="blake2b",
-    help=utils.fmt("""
+    help=utils.fmt(
+        """
 If `bad_password_include_in_notifications` set to true, causes the hashing
 function to use a provided hash algorithm from `hashlib`
 (https://docs.python.org/3/library/hashlib.html). The set of supported
@@ -147,28 +151,38 @@ algorithms could change over time and circumstances. Some potential choices
 are:
 {'blake2b', 'sha224', 'sha256', 'sha384', 'sha512', 'sha3_224', 'sha3_256',
 'sha3_384', 'sha3_512', 'shake_128', 'shake_256'}
-"""))
+"""
+    ),
+)
 
 bad_password_hash_personalization = cfg.StrOpt(
     'bad_password_hash_personalization',
     secret=True,
-    help=utils.fmt("""
+    help=utils.fmt(
+        """
 If `bad_password_include_in_notifications` set to true, applies personalization
 salt when generating password hashes to make them distinct from any other
 Keystone installations out there
 (https://docs.python.org/3/library/hashlib.html#personalization). Should be
 some unique static (also possibly random) value specific to the current
 installation. 16 bytes (128 bits) or more is generally sufficient.
-"""))
+"""
+    ),
+)
 
-bad_password_first_hashed_chars = cfg.IntOpt(
-    'bad_password_first_hashed_chars',
+bad_password_max_hashed_chars = cfg.IntOpt(
+    'bad_password_max_hashed_chars',
     default=5,
-    help=utils.fmt("""
+    min=1,
+    help=utils.fmt(
+        """
 If `bad_password_include_in_notifications` set to true, defines the number of
-first characters of password hash that will be included in notifications.
-Should be the least reasonable value.
-"""))
+characters of hash of bad password that will be included in notifications.
+Should be the least reasonable value, less than hash algorithm digest size (the
+default `blake2b` algorithm generates encoded hashes of 88 characters long).
+"""
+    ),
+)
 
 
 GROUP_NAME = __name__.split('.')[-1]
@@ -185,7 +199,7 @@ ALL_OPTS = [
     bad_password_include_in_notifications,
     bad_password_hash_algorithm,
     bad_password_hash_personalization,
-    bad_password_first_hashed_chars
+    bad_password_max_hashed_chars,
 ]
 
 

@@ -144,18 +144,16 @@ def hash_password(password):
 
     return hasher.using(**params).hash(password_utf8)
 
-def generate_partial_password_hash(password, **kwargs):
+def generate_partial_password_hash(password: str, **kwargs) -> str:
     """Generates partial password hash for e.g. reporting purposes.
 
     Hash algorithms from `hashlib`
     (https://docs.python.org/3/library/hashlib.html) are supported, set via
     `CONF.security_compliance.bad_password_hash_algorithm`.
 
-    The produced password hash is then base64 encoded, generating strings of
-    size 44-684 characters long (for hashes of 16-256 bytes correspondingly,
-    depending on algorithm used), from which
-    `CONF.security_compliance.bad_password_password_hash_first_characters`
-    first characters are eventually returned.
+    The produced password hash is then base64 encoded, and
+    `CONF.security_compliance.bad_password_password_hash_max_characters`
+    characters of it are eventually returned.
     """
 
     salt = CONF.security_compliance.bad_password_hash_personalization \
@@ -177,7 +175,7 @@ def generate_partial_password_hash(password, **kwargs):
     # truncating
     encoded = base64.b64encode(hashed).decode("utf-8")
 
-    max_chars = CONF.security_compliance.bad_password_first_hashed_chars
-    truncated = encoded[:max_chars]
+    max_chars = CONF.security_compliance.bad_password_max_hashed_chars
+    partial = encoded[:max_chars]
 
-    return truncated
+    return partial
