@@ -15,7 +15,7 @@ LOG.addHandler(handler)
 # get exceptions list as comma separated string from environment
 sentry_exclusion_list_string = os.environ.get("SENTRY_EXCLUSIONS_LIST", "")
 sentry_exclusion_list = sentry_exclusion_list_string.split(",")
-# filtered_exceptions_names = ["Unauthorized", "LDAPInvalidCredentialsError"]
+# ["Unauthorized", "LDAPInvalidCredentialsError"]
 
 # check for SENTRY_DSN
 # make sure to use the old lagacy DSN fromat because Sentry Instance is version 9.1.2
@@ -38,4 +38,5 @@ def before_send(event, _):
 sentry_sdk.init(dsn=sentry_dsn, debug=False, before_send=before_send)
 
 application = initialize_public_application()
-application = wsgi.SentryWsgiMiddleware(application)
+sentry_wsgi_public_wrapper = wsgi.SentryWsgiMiddleware(application)
+sentry_wsgi_admin_wrapper = sentry_wsgi_public_wrapper
