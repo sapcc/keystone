@@ -25,15 +25,11 @@ except ImportError:
 
 from keystone.common import profiler
 import keystone.conf
-from keystone import exception
 import keystone.server
 from keystone.server.flask import application
 from keystone.server.flask.request_processing.middleware import auth_context
 from keystone.server.flask.request_processing.middleware import url_normalize
 
-# CCloud
-import logging
-from raven.contrib.flask import Sentry
 
 # NOTE(morgan): Middleware Named Tuple with the following values:
 #   * "namespace": namespace for the entry_point
