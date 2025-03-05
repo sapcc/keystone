@@ -37,6 +37,9 @@ def before_send(event, _):
 
 sentry_sdk.init(dsn=sentry_dsn, debug=False, before_send=before_send)
 
-application = initialize_public_application()
-sentry_wsgi_public_wrapper = wsgi.SentryWsgiMiddleware(application)
+def sentry_wsgi_public_wrapper():
+    application = initialize_public_application()
+    sentry_wsgi_public_app = wsgi.SentryWsgiMiddleware(application)
+    return sentry_wsgi_public_app
+
 sentry_wsgi_admin_wrapper = sentry_wsgi_public_wrapper
