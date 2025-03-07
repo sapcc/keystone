@@ -1,6 +1,8 @@
 import logging
 import os
 
+from sentry_sdk.utils import BadDsn
+
 from keystone.server.wsgi import initialize_public_application
 
 import sentry_sdk
@@ -28,12 +30,16 @@ def before_send(event, _):
                 if "type" in value:
                     exception_type = value["type"]
                     if exception_type in sentry_exclusion_list:
-                        logger.info("[-] filtered out: %s", exception_type)
+                        logger.info("[+] filtered out: %s", exception_type)
                         return None
     return event
 
-
-sentry_sdk.init(dsn=sentry_dsn, debug=False, before_send=before_send)
+try:
+    sentry_sdk.init(dsn=sentry_dsn, debug=False, before_send=before_send)
+except BadDsn as e:
+    logger.error("Bad SENTRY_DSN format, %s: expected https://<uid>:<uid>@<domain>/:id", e)
+except Exception as e:
+    logger.error("Exception while initializing sentry sdk, %s", e)
 
 def sentry_wsgi_public_wrapper():
     application = initialize_public_application()
