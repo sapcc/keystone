@@ -24,6 +24,7 @@ from oslo_log import log
 import oslo_messaging
 from pycadf import cadftaxonomy
 from pycadf import cadftype
+from pycadf import event as cadfevent
 from pycadf import eventfactory
 from pycadf import resource as cadfresource
 
@@ -264,8 +265,16 @@ class BaseNotificationTest(test_v3.RestfulTestCase):
         self.useFixture(fixtures.MockPatchObject(
             notifications, '_send_notification', fake_notify))
 
-        def fake_audit(action, initiator, outcome, target,
-                       event_type, reason=None, **kwargs):
+        def fake_audit(
+            action,
+            initiator,
+            outcome,
+            target,
+            event_type,
+            reason=None,
+            attachments=None,
+            **kwargs,
+        ):
             service_security = cadftaxonomy.SERVICE_SECURITY
 
             event = eventfactory.EventFactory().new_event(
@@ -276,6 +285,10 @@ class BaseNotificationTest(test_v3.RestfulTestCase):
                 target=target,
                 reason=reason,
                 observer=cadfresource.Resource(typeURI=service_security))
+
+            attachments = attachments if attachments is not None else []
+            for attachment_val in attachments:
+                event.add_attachment(attachment_val)
 
             for key, value in kwargs.items():
                 setattr(event, key, value)
@@ -309,8 +322,15 @@ class BaseNotificationTest(test_v3.RestfulTestCase):
             self.assertEqual(actor_type, note['actor_type'])
             self.assertEqual(actor_operation, note['actor_operation'])
 
-    def _assert_last_audit(self, resource_id, operation, resource_type,
-                           target_uri, reason=None):
+    def _assert_last_audit(
+        self,
+        resource_id,
+        operation,
+        resource_type,
+        target_uri,
+        reason=None,
+        attachments=None,
+    ):
         # NOTE(stevemar): If 'cadf' format is not used, then simply
         # return since this assertion is not valid.
         if CONF.notification_format != 'cadf':
@@ -335,6 +355,15 @@ class BaseNotificationTest(test_v3.RestfulTestCase):
             self.assertEqual(reason['reasonType'],
                              payload['reason']['reasonType'])
         self.assertTrue(audit['send_notification_called'])
+        if attachments is None:
+            self.assertNotIn(cadfevent.EVENT_KEYNAME_ATTACHMENTS, payload)
+        else:
+            self.assertIn(cadfevent.EVENT_KEYNAME_ATTACHMENTS, payload)
+            for attachment_val in attachments:
+                self.assertIn(
+                    attachment_val,
+                    payload.get(cadfevent.EVENT_KEYNAME_ATTACHMENTS),
+                )
 
     def _assert_initiator_data_is_set(self, operation, resource_type, typeURI):
         self.assertGreater(len(self._audits), 0)
@@ -911,6 +940,131 @@ class CADFNotificationsForPCIDSSEvents(BaseNotificationTest):
         self._assert_last_audit(user_ref['id'], UPDATED_OPERATION, 'user',
                                 cadftaxonomy.SECURITY_ACCOUNT_USER,
                                 reason=expected_reason)
+
+    def test_valid_password_not_hashed_by_default(self):
+        password = uuid.uuid4().hex
+        user_ref = unit.new_user_ref(
+            domain_id=self.domain_id, password=password
+        )
+        user_ref = PROVIDERS.identity_api.create_user(user_ref)
+
+        with mock.patch(
+            'keystone.common.password_hashing.generate_partial_password_hash'
+        ) as mocked:
+            with self.make_request():
+                PROVIDERS.identity_api.authenticate(user_ref['id'], password)
+            mocked.assert_not_called()
+
+        self._assert_last_audit(
+            None,
+            'authenticate',
+            None,
+            cadftaxonomy.ACCOUNT_USER,
+            attachments=None,
+        )
+
+    def test_invalid_password_not_hashed_by_default(self):
+        password = uuid.uuid4().hex
+        invalid_password = 'invalid_' + password
+        user_ref = unit.new_user_ref(
+            domain_id=self.domain_id, password=password
+        )
+        user_ref = PROVIDERS.identity_api.create_user(user_ref)
+
+        with mock.patch(
+            'keystone.common.password_hashing.generate_partial_password_hash'
+        ) as mocked:
+            with self.make_request():
+                self.assertRaises(
+                    AssertionError,
+                    PROVIDERS.identity_api.authenticate,
+                    user_id=user_ref['id'],
+                    password=invalid_password,
+                )
+            mocked.assert_not_called()
+
+        self._assert_last_audit(
+            None,
+            'authenticate',
+            None,
+            cadftaxonomy.ACCOUNT_USER,
+            attachments=None,
+        )
+
+    def test_valid_password_hash_not_included_when_report_in_event(self):
+        password = uuid.uuid4().hex
+        user_ref = unit.new_user_ref(
+            domain_id=self.domain_id, password=password
+        )
+        user_ref = PROVIDERS.identity_api.create_user(user_ref)
+
+        conf = self.useFixture(config_fixture.Config(CONF))
+        conf.config(
+            group='security_compliance', report_invalid_password_hash='event'
+        )
+        conf.config(
+            group='security_compliance',
+            invalid_password_hash_secret_key='secret_key',
+        )
+        with mock.patch(
+            'keystone.common.password_hashing.generate_partial_password_hash'
+        ) as mocked:
+            with self.make_request():
+                PROVIDERS.identity_api.authenticate(user_ref['id'], password)
+            mocked.assert_not_called()
+
+        self._assert_last_audit(
+            None,
+            'authenticate',
+            None,
+            cadftaxonomy.ACCOUNT_USER,
+            attachments=None,
+        )
+
+    def test_invalid_password_hash_included_when_report_in_event(self):
+        password = uuid.uuid4().hex
+        invalid_password = 'invalid_' + password
+        user_ref = unit.new_user_ref(
+            domain_id=self.domain_id, password=password
+        )
+        user_ref = PROVIDERS.identity_api.create_user(user_ref)
+
+        conf = self.useFixture(config_fixture.Config(CONF))
+        conf.config(
+            group='security_compliance', report_invalid_password_hash='event'
+        )
+        conf.config(
+            group='security_compliance',
+            invalid_password_hash_secret_key='secret_key',
+        )
+        hashed_invalid_password = 'hashed_' + invalid_password
+        with mock.patch(
+            'keystone.common.password_hashing.generate_partial_password_hash',
+            return_value=hashed_invalid_password,
+        ) as mocked:
+            with self.make_request():
+                self.assertRaises(
+                    AssertionError,
+                    PROVIDERS.identity_api.authenticate,
+                    user_id=user_ref['id'],
+                    password=invalid_password,
+                )
+
+            mocked.assert_called_once()
+
+        self._assert_last_audit(
+            None,
+            'authenticate',
+            None,
+            cadftaxonomy.ACCOUNT_USER,
+            attachments=[
+                {
+                    'content': hashed_invalid_password,
+                    'name': "partial_password_hash",
+                    'typeURI': "mime:text/plain",
+                }
+            ],
+        )
 
 
 class CADFNotificationsForEntities(NotificationsForEntities):
