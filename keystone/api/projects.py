@@ -12,6 +12,7 @@
 
 # This file handles all flask-restful resources for /v3/projects
 
+from collections.abc import Iterable
 import functools
 
 import flask
@@ -45,6 +46,49 @@ def _build_project_target_enforcement():
         pass
 
     return target
+
+
+def is_provider_tag(tag: str) -> bool:
+    """Check if the provided tag is a provider tag."""
+    return tag.startswith(tuple(CONF.provider_tag_prefix))
+
+
+def get_provider_tags(tags: Iterable[str]) -> set[str]:
+    """Return the provider tags from the given tags."""
+    return set(t for t in tags if is_provider_tag(t))
+
+
+def validate_tags(project_id: str, tags: Iterable[str], policy: str
+                  ) -> list[str]:
+    """Return the tags the user is allowed to change.
+
+    We check whether the list of tags contains provider tags. If it does, we
+    check if the user is allowed to change provider tags. If they are not
+    allowed, we restore the original provider tags in the list.
+    """
+    original_ptags = get_provider_tags(
+        PROVIDERS.resource_api.list_project_tags(project_id)
+    )
+    ptags = get_provider_tags(tags)
+    removed_ptags = original_ptags - ptags
+    new_ptags = ptags - original_ptags
+    if removed_ptags or new_ptags:
+        # NOTE(jkulik): Adding/removing provider tags needs special
+        # privileges but the user might just send us an update of their own
+        # tags instead of including the provider tags, so we try to handle
+        # this gracefully here by updating the non-provider tags
+        # nonetheless.
+        try:
+            ENFORCER.enforce_call(
+                action='identity:%s:provider_tags' % policy,
+                build_target=_build_project_target_enforcement
+            )
+        except exception.Forbidden:
+            # User is not allowed to change provider tags so we restore the
+            # original provider tags to allow them to update their tags.
+            tags = (set(tags) | removed_ptags) - new_ptags
+
+    return list(tags)
 
 
 class ProjectResource(ks_flask.ResourceBase):
@@ -182,6 +226,11 @@ class ProjectResource(ks_flask.ResourceBase):
         if not project.get('parent_id'):
             project['parent_id'] = project.get('domain_id')
         project = self._normalize_dict(project)
+        if get_provider_tags(project.get('tags', [])):
+            ENFORCER.enforce_call(
+                action='identity:create_project:provider_tags',
+                target_attr=target
+            )
         try:
             ref = PROVIDERS.resource_api.create_project(
                 project['id'],
@@ -203,6 +252,9 @@ class ProjectResource(ks_flask.ResourceBase):
         project = self.request_body_json.get('project', {})
         validation.lazy_validate(schema.project_update, project)
         self._require_matching_id(project)
+        if project.get('tags') is not None:
+            project['tags'] = validate_tags(
+                project_id, project['tags'], 'update_project')
         ref = PROVIDERS.resource_api.update_project(
             project_id,
             project,
@@ -264,6 +316,7 @@ class ProjectTagsResource(_ProjectTagResourceBase):
         )
         tags = self.request_body_json.get('tags', {})
         validation.lazy_validate(schema.project_tags_update, tags)
+        tags = validate_tags(project_id, tags, 'update_project_tags')
         ref = PROVIDERS.resource_api.update_project_tags(
             project_id, tags, initiator=self.audit_initiator)
         return self.wrap_member(ref)
@@ -277,7 +330,8 @@ class ProjectTagsResource(_ProjectTagResourceBase):
             action='identity:delete_project_tags',
             build_target=_build_project_target_enforcement
         )
-        PROVIDERS.resource_api.update_project_tags(project_id, [])
+        tags = validate_tags(project_id, [], 'delete_project_tags')
+        PROVIDERS.resource_api.update_project_tags(project_id, tags)
         return None, http.client.NO_CONTENT
 
 
@@ -308,6 +362,11 @@ class ProjectTagResource(_ProjectTagResourceBase):
         tags = PROVIDERS.resource_api.list_project_tags(project_id)
         tags.append(value)
         validation.lazy_validate(schema.project_tags_update, tags)
+        if is_provider_tag(value):
+            ENFORCER.enforce_call(
+                action='identity:create_project_tag:provider_tags',
+                build_target=_build_project_target_enforcement
+            )
         PROVIDERS.resource_api.create_project_tag(
             project_id,
             value,
@@ -327,6 +386,11 @@ class ProjectTagResource(_ProjectTagResourceBase):
             action='identity:delete_project_tag',
             build_target=_build_project_target_enforcement
         )
+        if is_provider_tag(value):
+            ENFORCER.enforce_call(
+                action='identity:delete_project_tag:provider_tags',
+                build_target=_build_project_target_enforcement
+            )
         PROVIDERS.resource_api.delete_project_tag(project_id, value)
         return None, http.client.NO_CONTENT
 

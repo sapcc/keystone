@@ -65,6 +65,8 @@ SYSTEM_ADMIN_OR_DOMAIN_ADMIN = (
     '(role:admin and domain_id:%(target.project.domain_id)s)'
 )
 
+RULE_CLOUD_ADMIN_OR_SERVICE = 'rule:cloud_admin or rule:service_role'
+
 DEPRECATED_REASON = (
     "The project API is now aware of system scope and default roles."
 )
@@ -185,6 +187,13 @@ project_policies = [
                      'method': 'POST'}],
         deprecated_rule=deprecated_create_project),
     policy.DocumentedRuleDefault(
+        name=base.IDENTITY % 'create_project:provider_tags',
+        check_str=RULE_CLOUD_ADMIN_OR_SERVICE,
+        scope_types=['system', 'domain', 'project'],
+        description='Create project with provider tags.',
+        operations=[{'path': '/v3/projects',
+                     'method': 'POST'}]),
+    policy.DocumentedRuleDefault(
         name=base.IDENTITY % 'update_project',
         check_str=base.RULE_ADMIN_REQUIRED,
         scope_types=['system', 'domain', 'project'],
@@ -192,6 +201,13 @@ project_policies = [
         operations=[{'path': '/v3/projects/{project_id}',
                      'method': 'PATCH'}],
         deprecated_rule=deprecated_update_project),
+    policy.DocumentedRuleDefault(
+        name=base.IDENTITY % 'update_project:provider_tags',
+        check_str=RULE_CLOUD_ADMIN_OR_SERVICE,
+        scope_types=['system', 'domain', 'project'],
+        description='Update project with provider tags.',
+        operations=[{'path': '/v3/projects/{project_id}',
+                     'method': 'PATCH'}]),
     policy.DocumentedRuleDefault(
         name=base.IDENTITY % 'delete_project',
         check_str=base.RULE_ADMIN_REQUIRED,
@@ -229,6 +245,14 @@ project_policies = [
                      'method': 'PUT'}],
         deprecated_rule=deprecated_update_project_tag),
     policy.DocumentedRuleDefault(
+        name=base.IDENTITY % 'update_project_tags:provider_tags',
+        check_str=RULE_CLOUD_ADMIN_OR_SERVICE,
+        scope_types=['system', 'domain', 'project'],
+        description='Replace all tags on a project with the new set of tags '
+                    'that includes provider tags.',
+        operations=[{'path': '/v3/projects/{project_id}/tags',
+                     'method': 'PUT'}]),
+    policy.DocumentedRuleDefault(
         name=base.IDENTITY % 'create_project_tag',
         check_str=base.RULE_ADMIN_REQUIRED,
         scope_types=['system', 'domain', 'project'],
@@ -236,6 +260,13 @@ project_policies = [
         operations=[{'path': '/v3/projects/{project_id}/tags/{value}',
                      'method': 'PUT'}],
         deprecated_rule=deprecated_create_project_tag),
+    policy.DocumentedRuleDefault(
+        name=base.IDENTITY % 'create_project_tag:provider_tags',
+        check_str=RULE_CLOUD_ADMIN_OR_SERVICE,
+        scope_types=['system', 'domain', 'project'],
+        description='Add a single provider tag to a project.',
+        operations=[{'path': '/v3/projects/{project_id}/tags/{value}',
+                     'method': 'PUT'}]),
     policy.DocumentedRuleDefault(
         name=base.IDENTITY % 'delete_project_tags',
         check_str=base.RULE_ADMIN_REQUIRED,
@@ -245,13 +276,27 @@ project_policies = [
                      'method': 'DELETE'}],
         deprecated_rule=deprecated_delete_project_tags),
     policy.DocumentedRuleDefault(
+        name=base.IDENTITY % 'delete_project_tags:provider_tags',
+        check_str=RULE_CLOUD_ADMIN_OR_SERVICE,
+        scope_types=['system', 'domain', 'project'],
+        description='Remove all tags from a project including provider tags.',
+        operations=[{'path': '/v3/projects/{project_id}/tags',
+                     'method': 'DELETE'}]),
+    policy.DocumentedRuleDefault(
         name=base.IDENTITY % 'delete_project_tag',
         check_str=base.RULE_ADMIN_REQUIRED,
         scope_types=['system', 'domain', 'project'],
         description='Delete a specified tag from project.',
         operations=[{'path': '/v3/projects/{project_id}/tags/{value}',
                      'method': 'DELETE'}],
-        deprecated_rule=deprecated_delete_project_tag)
+        deprecated_rule=deprecated_delete_project_tag),
+    policy.DocumentedRuleDefault(
+        name=base.IDENTITY % 'delete_project_tag:provider_tags',
+        check_str=RULE_CLOUD_ADMIN_OR_SERVICE,
+        scope_types=['system', 'domain', 'project'],
+        description='Delete a specified provider tag from project.',
+        operations=[{'path': '/v3/projects/{project_id}/tags/{value}',
+                     'method': 'DELETE'}]),
 ]
 
 

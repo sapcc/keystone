@@ -115,6 +115,13 @@ default_tag=tag_0
 default_tag=tag_1
 """))
 
+provider_tag_prefix = cfg.MultiStrOpt(
+    'provider_tag_prefix',
+    default=[],
+    help=utils.fmt("""
+Prefixes for `tag`(s) on projects that need special privileges.
+"""))
+
 notification_format = cfg.StrOpt(
     'notification_format',
     default='cadf',
@@ -158,6 +165,7 @@ ALL_OPTS = [
     insecure_debug,
     default_publisher_id,
     default_tag,
+    provider_tag_prefix,
     notification_format,
     notification_opt_out,
 ]
