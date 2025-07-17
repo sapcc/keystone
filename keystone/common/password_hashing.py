@@ -159,6 +159,7 @@ def hash_password(password):
 
     return hasher.using(**params).hash(password_utf8)
 
+
 def generate_partial_password_hash(password: str, salt: str) -> str:
     """Generates partial password hash for reporting purposes.
 
