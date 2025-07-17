@@ -95,7 +95,8 @@ _CC_MIDDLEWARE = (
     #                   'backend_timeout_seconds': '1'}),
 )
 
-# ccloud: additional ccloud specific middleware that needs to sit 'behind' the AuthContextMiddleware
+# ccloud: additional ccloud specific middleware that needs to sit 'behind' the
+# AuthContextMiddleware
 _CC_MIDDLEWARE = (
     # CCloud: add watcher middleware
     _Middleware(namespace='watcher.middleware',
@@ -189,7 +190,8 @@ def setup_app_middleware(app):
         if mw.ep == 'watcher' and os.environ.get('WATCHER_DISABLED', None):
             continue
 
-        loaded = stevedore.DriverManager(mw.namespace, mw.ep, invoke_on_load=False)
+        loaded = stevedore.DriverManager(mw.namespace, mw.ep,
+                                         invoke_on_load=False)
         factory_func = loaded.driver.factory({}, **mw.conf)
         app.wsgi_app = factory_func(app.wsgi_app)
 
