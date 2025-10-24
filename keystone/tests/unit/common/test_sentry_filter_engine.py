@@ -10,7 +10,6 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import time
 from unittest import mock
 
 from keystone.common.sentry_filter_engine import SentryFilterEngine
@@ -27,8 +26,12 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
     def test_no_rules_allows_all_events(self):
         """Test that engine with no rules allows all events."""
         engine = SentryFilterEngine([])
-        event = {'exception': {'values': [{'type': 'TestError', 'value': 'test message'}]}}
-        
+        event = {
+            'exception': {
+                'values': [{'type': 'TestError', 'value': 'test message'}]
+            }
+        }
+
         result = engine.should_filter_event(event)
         self.assertFalse(result)
 
@@ -36,14 +39,18 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         """Test basic exception type matching."""
         rules = [{'name': 'test_rule', 'exception_type': 'TestError'}]
         engine = SentryFilterEngine(rules)
-        
+
         # Matching event should be filtered
-        matching_event = {'exception': {'values': [{'type': 'TestError', 'value': 'test'}]}}
+        matching_event = {
+            'exception': {'values': [{'type': 'TestError', 'value': 'test'}]}
+        }
         result = engine.should_filter_event(matching_event)
         self.assertTrue(result)
-        
+
         # Non-matching event should not be filtered
-        non_matching_event = {'exception': {'values': [{'type': 'OtherError', 'value': 'test'}]}}
+        non_matching_event = {
+            'exception': {'values': [{'type': 'OtherError', 'value': 'test'}]}
+        }
         result = engine.should_filter_event(non_matching_event)
         self.assertFalse(result)
 
@@ -51,14 +58,22 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         """Test basic message contains matching."""
         rules = [{'name': 'test_rule', 'message_contains': 'timeout'}]
         engine = SentryFilterEngine(rules)
-        
+
         # Matching event should be filtered
-        matching_event = {'exception': {'values': [{'type': 'Error', 'value': 'connection timeout error'}]}}
+        matching_event = {
+            'exception': {
+                'values': [{'type': 'Error',
+                            'value': 'connection timeout error'}]
+            }
+        }
         result = engine.should_filter_event(matching_event)
         self.assertTrue(result)
-        
+
         # Non-matching event should not be filtered
-        non_matching_event = {'exception': {'values': [{'type': 'Error', 'value': 'other error'}]}}
+        non_matching_event = {
+            'exception': {'values': [{'type': 'Error',
+                                      'value': 'other error'}]}
+        }
         result = engine.should_filter_event(non_matching_event)
         self.assertFalse(result)
 
@@ -66,14 +81,20 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         """Test basic regex pattern matching."""
         rules = [{'name': 'test_rule', 'message_pattern': 'error.*\\d+'}]
         engine = SentryFilterEngine(rules)
-        
+
         # Matching event should be filtered
-        matching_event = {'exception': {'values': [{'type': 'Error', 'value': 'error code 500'}]}}
+        matching_event = {
+            'exception': {'values': [{'type': 'Error',
+                                      'value': 'error code 500'}]}
+        }
         result = engine.should_filter_event(matching_event)
         self.assertTrue(result)
-        
+
         # Non-matching event should not be filtered
-        non_matching_event = {'exception': {'values': [{'type': 'Error', 'value': 'error without number'}]}}
+        non_matching_event = {
+            'exception': {'values': [{'type': 'Error',
+                                      'value': 'error without number'}]}
+        }
         result = engine.should_filter_event(non_matching_event)
         self.assertFalse(result)
 
@@ -85,16 +106,18 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
             'rate_limit': {'max_occurrences': 2, 'time_window': 60}
         }]
         engine = SentryFilterEngine(rules)
-        event = {'exception': {'values': [{'type': 'TestError', 'value': 'test'}]}}
-        
+        event = {
+            'exception': {'values': [{'type': 'TestError', 'value': 'test'}]}
+        }
+
         # First occurrence should not be filtered (not at limit yet)
         result = engine.should_filter_event(event)
         self.assertFalse(result)
-        
+
         # Second occurrence should not be filtered (not at limit yet)
         result = engine.should_filter_event(event)
         self.assertFalse(result)
-        
+
         # Third occurrence should be filtered (at limit)
         result = engine.should_filter_event(event)
         self.assertTrue(result)
@@ -108,18 +131,20 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
             'rate_limit': {'max_occurrences': 1, 'time_window': 10}
         }]
         engine = SentryFilterEngine(rules)
-        event = {'exception': {'values': [{'type': 'TestError', 'value': 'test'}]}}
-        
+        event = {
+            'exception': {'values': [{'type': 'TestError', 'value': 'test'}]}
+        }
+
         # First occurrence at time 0
         mock_time.return_value = 0
         result = engine.should_filter_event(event)
         self.assertFalse(result)
-        
+
         # Second occurrence at time 5 (within window) should be filtered
         mock_time.return_value = 5
         result = engine.should_filter_event(event)
         self.assertTrue(result)
-        
+
         # Third occurrence at time 15 (outside window) should not be filtered
         mock_time.return_value = 15
         result = engine.should_filter_event(event)
@@ -133,14 +158,21 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
             'message_contains': 'timeout'
         }]
         engine = SentryFilterEngine(rules)
-        
+
         # Event matching both conditions should be filtered
-        matching_event = {'exception': {'values': [{'type': 'TestError', 'value': 'timeout error'}]}}
+        matching_event = {
+            'exception': {
+                'values': [{'type': 'TestError', 'value': 'timeout error'}]
+            }
+        }
         result = engine.should_filter_event(matching_event)
         self.assertTrue(result)
-        
+
         # Event matching only one condition should not be filtered
-        partial_match_event = {'exception': {'values': [{'type': 'TestError', 'value': 'other error'}]}}
+        partial_match_event = {
+            'exception': {'values': [{'type': 'TestError',
+                                      'value': 'other error'}]}
+        }
         result = engine.should_filter_event(partial_match_event)
         self.assertFalse(result)
 
@@ -148,15 +180,15 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         """Test that statistics can be retrieved."""
         rules = [{'name': 'test_rule', 'exception_type': 'TestError'}]
         engine = SentryFilterEngine(rules)
-        
+
         stats = engine.get_statistics()
-        
+
         # Basic structure should be present
         self.assertIn('total_rules', stats)
         self.assertIn('rate_limited_rules', stats)
         self.assertIn('compiled_regexes', stats)
         self.assertIn('rate_limit_stats', stats)
-        
+
         # Should have correct rule count
         self.assertEqual(stats['total_rules'], 1)
 
@@ -164,12 +196,12 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         """Test handling of malformed or empty events."""
         rules = [{'name': 'test_rule', 'exception_type': 'TestError'}]
         engine = SentryFilterEngine(rules)
-        
+
         # Empty event should not be filtered
         empty_event = {}
         result = engine.should_filter_event(empty_event)
         self.assertFalse(result)
-        
+
         # Event without exception should not be filtered
         no_exception_event = {'other_field': 'value'}
         result = engine.should_filter_event(no_exception_event)

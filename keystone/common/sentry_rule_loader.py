@@ -10,56 +10,63 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import os
-import yaml
 import logging
-from typing import Dict, List, Any
+import os
+import re
+import yaml
+
+from typing import Any
+from typing import Dict
+from typing import List
 
 LOG = logging.getLogger(__name__)
 
 
 class RuleValidationError(Exception):
     """Raised when a rule fails validation."""
+
     pass
 
 
 def load_rules_from_file(config_file: str) -> List[Dict[str, Any]]:
     """Load and validate Sentry filtering rules from YAML file.
-    
+
     Args:
         config_file: Path to the YAML configuration file
-        
+
     Returns:
         List of validated rule dictionaries
-        
+
     Raises:
         FileNotFoundError: If config file doesn't exist
         yaml.YAMLError: If YAML parsing fails
         RuleValidationError: If rule validation fails
     """
     LOG.info("Loading Sentry filter rules from: %s", config_file)
-    
+
     if not os.path.exists(config_file):
         # return empty list if config file does not exist
         LOG.warning("Sentry filter config file not found: %s", config_file)
         return []
-    
+
     try:
         with open(config_file, 'r') as f:
             config_data = yaml.safe_load(f)
     except yaml.YAMLError as e:
-        raise yaml.YAMLError(f"Failed to parse YAML config file {config_file}: {e}")
-    
+        raise yaml.YAMLError(
+            f"Failed to parse YAML config file {config_file}: {e}"
+        )
+
     if not isinstance(config_data, dict):
         raise RuleValidationError("Config file must contain a YAML dictionary")
-    
+
     if 'rules' not in config_data:
         raise RuleValidationError("Config file must contain a 'rules' section")
-    
+
     rules = config_data['rules']
     if not isinstance(rules, list):
         raise RuleValidationError("'rules' section must be a list")
-    
+
     validated_rules = []
     for i, rule in enumerate(rules):
         try:
@@ -68,91 +75,113 @@ def load_rules_from_file(config_file: str) -> List[Dict[str, Any]]:
         except RuleValidationError as e:
             LOG.error("Rule validation failed for rule %d: %s", i, e)
             raise RuleValidationError(f"Rule {i} validation failed: {e}")
-    
-    LOG.info("Successfully loaded %d Sentry filter rules", len(validated_rules))
+
+    LOG.info(
+        "Successfully loaded %d Sentry filter rules",
+        len(validated_rules),
+    )
     return validated_rules
 
 
 def _validate_rule(rule: Dict[str, Any], rule_index: int) -> Dict[str, Any]:
     """Validate a single filtering rule.
-    
+
     Args:
         rule: Rule dictionary to validate
         rule_index: Index of rule for error reporting
-        
+
     Returns:
         Validated rule dictionary
-        
+
     Raises:
         RuleValidationError: If rule validation fails
     """
     if not isinstance(rule, dict):
-        raise RuleValidationError(f"Rule must be a dictionary, got {type(rule)}")
-    
+        raise RuleValidationError(
+            f"Rule must be a dictionary, got {type(rule)}"
+        )
+
     # Rule name is required for logging and rate limiting identification
     if 'name' not in rule:
         raise RuleValidationError("Rule must have a 'name' field")
-    
+
     if not isinstance(rule['name'], str) or not rule['name'].strip():
         raise RuleValidationError("Rule 'name' must be a non-empty string")
-    
+
     # At least one filtering condition must be specified
-    has_condition = any(field in rule for field in [
-        'exception_type', 'message_pattern', 'message_contains'
-    ])
-    
+    has_condition = any(
+        field in rule for field in [
+            'exception_type', 'message_pattern', 'message_contains'
+        ]
+    )
+
     if not has_condition:
         raise RuleValidationError(
             "Rule must specify at least one condition: "
             "'exception_type', 'message_pattern', or 'message_contains'"
         )
-    
+
     # Validate exception_type
     if 'exception_type' in rule:
         if not isinstance(rule['exception_type'], str):
             raise RuleValidationError("'exception_type' must be a string")
-    
+
     # Validate message_pattern (regex)
     if 'message_pattern' in rule:
         if not isinstance(rule['message_pattern'], str):
             raise RuleValidationError("'message_pattern' must be a string")
-        
+
         # Test regex compilation
         try:
-            import re
             re.compile(rule['message_pattern'])
         except re.error as e:
-            raise RuleValidationError(f"Invalid regex in 'message_pattern': {e}")
-    
+            raise RuleValidationError(
+                f"Invalid regex in 'message_pattern': {e}"
+            )
+
     # Validate message_contains
     if 'message_contains' in rule:
         if not isinstance(rule['message_contains'], str):
             raise RuleValidationError("'message_contains' must be a string")
-    
+
     # Validate rate limiting parameters
     if 'rate_limit' in rule:
         rate_limit = rule['rate_limit']
-        
+
         if not isinstance(rate_limit, dict):
             raise RuleValidationError("'rate_limit' must be a dictionary")
-        
-        if 'max_occurrences' not in rate_limit or 'time_window' not in rate_limit:
+
+        if (
+            'max_occurrences' not in rate_limit
+            or 'time_window' not in rate_limit
+        ):
             raise RuleValidationError(
-                "Rate limiting requires both 'max_occurrences' and 'time_window' in 'rate_limit' section"
+                "Rate limiting requires both 'max_occurrences'"
+                " and 'time_window'"
             )
-        
-        if not isinstance(rate_limit['max_occurrences'], int) or rate_limit['max_occurrences'] <= 0:
-            raise RuleValidationError("'rate_limit.max_occurrences' must be a positive integer")
-        
-        if not isinstance(rate_limit['time_window'], (int, float)) or rate_limit['time_window'] <= 0:
-            raise RuleValidationError("'rate_limit.time_window' must be a positive number")
-    
+
+        if (
+            not isinstance(rate_limit['max_occurrences'], int)
+            or rate_limit['max_occurrences'] <= 0
+        ):
+            raise RuleValidationError(
+                "'rate_limit.max_occurrences' must be a positive integer"
+            )
+
+        if (
+            not isinstance(rate_limit['time_window'], (int, float))
+            or rate_limit['time_window'] <= 0
+        ):
+            raise RuleValidationError(
+                "'rate_limit.time_window' must be a positive number"
+            )
+
     return rule
 
 
 def create_example_config_file(output_file: str) -> None:
     """Create an example configuration file with common filtering rules.
-    
+
     Args:
         output_file: Path where to write the example config
     """
@@ -180,7 +209,7 @@ def create_example_config_file(output_file: str) -> None:
             },
             {
                 'name': 'filter_connection_refused',
-                'message_pattern': 'Connection.*refused.*port\s+\d+'
+                'message_pattern': r'Connection.*refused.*port\s+\d+',
             },
             {
                 'name': 'complex_database_rule',
@@ -193,8 +222,8 @@ def create_example_config_file(output_file: str) -> None:
             }
         ]
     }
-    
+
     with open(output_file, 'w') as f:
         yaml.dump(example_config, f, default_flow_style=False, indent=2)
-    
+
     LOG.info("Created example Sentry filter config at: %s", output_file)
