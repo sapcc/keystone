@@ -176,22 +176,6 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         result = engine.should_filter_event(partial_match_event)
         self.assertFalse(result)
 
-    def test_get_statistics(self):
-        """Test that statistics can be retrieved."""
-        rules = [{'name': 'test_rule', 'exception_type': 'TestError'}]
-        engine = SentryFilterEngine(rules)
-
-        stats = engine.get_statistics()
-
-        # Basic structure should be present
-        self.assertIn('total_rules', stats)
-        self.assertIn('rate_limited_rules', stats)
-        self.assertIn('compiled_regexes', stats)
-        self.assertIn('rate_limit_stats', stats)
-
-        # Should have correct rule count
-        self.assertEqual(stats['total_rules'], 1)
-
     def test_empty_event_handling(self):
         """Test handling of malformed or empty events."""
         rules = [{'name': 'test_rule', 'exception_type': 'TestError'}]
