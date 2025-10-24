@@ -5,7 +5,12 @@
 # - exception_type: Filter by exception class name
 # - message_pattern: Filter by regex pattern in exception message
 # - message_contains: Filter by simple string in exception message
-# - max_occurrences + time_window: Rate limiting (both required together)
+# - rate_limit: Limit occurrences of specific exceptions over a time window
+#
+#  within rate_limit:
+# - max_occurrences: Maximum number of times the exception can be sent to Sentry within the time window
+# - time_window: Time frame in seconds during which max_occurrences is counted
+# Example: A rate_limit of max_occurrences: 5 and time_window: 300 means that only 5 occurrences of the exception will be sent to Sentry every 5 minutes.
 #
 # Environment variable to set path: SENTRY_FILTER_CONFIG=/path/to/this/file.yaml
 
@@ -13,9 +18,6 @@ rules:
   # Simple exclusion rules - always filter these exceptions
   - name: "exclude_unauthorized_errors"
     exception_type: "Unauthorized"
-
-  - name: "exclude_ldap_invalid_credentials"
-    exception_type: "LDAPInvalidCredentialsError"
 
   - name: "exclude_token_not_found"
     exception_type: "TokenNotFound"
@@ -84,3 +86,4 @@ rules:
 # 7. Consider different time_window values based on issue frequency:
 #    - Short windows (60-300s) for high-frequency issues
 #    - Long windows (600-3600s) for occasional issues you want to limit
+
