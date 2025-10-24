@@ -4,6 +4,7 @@ import os
 from sentry_sdk.utils import BadDsn
 import sentry_sdk
 from sentry_sdk.integrations import wsgi
+from sentry_sdk.scrubber import EventScrubber, DEFAULT_DENYLIST
 
 from keystone.server.wsgi import initialize_public_application
 from keystone.common.sentry_filter_engine import SentryFilterEngine
@@ -12,6 +13,7 @@ from keystone.common.sentry_rule_loader import load_rules_from_file, RuleValidat
 logger = logging.getLogger(__name__)
 
 filter_engine = None
+denylist = DEFAULT_DENYLIST + ['old_password', 'new_password', 'password', 'cred', 'secret', 'passwd', 'credentials']
 
 # Environment variable configuration
 # SENTRY_FILTER_CONFIG_FILE: Path to YAML file with filtering rules
@@ -62,7 +64,14 @@ def _initialize_sentry_sdk():
         return
     
     try:
-        sentry_sdk.init(dsn=sentry_dsn, debug=True, before_send=before_send)
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            send_default_pii=False,
+            event_scrubber=EventScrubber(denylist=denylist),
+            before_send=before_send,
+            debug=True
+        )
+
         logger.info("Sentry SDK initialized successfully")
     except BadDsn as e:
         logger.error("Bad SENTRY_DSN format: %s", e)
