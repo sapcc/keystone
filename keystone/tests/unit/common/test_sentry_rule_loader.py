@@ -224,9 +224,9 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
         }
         config_file = self._create_temp_config(config_data)
 
-        self.assertRaises(RuleValidationError,
-                          load_rules_from_file,
-                          config_file)
+        self.assertRaises(
+            RuleValidationError, load_rules_from_file, config_file
+        )
 
     def test_rate_limit_missing_time_window(self):
         """Test validation fails when rate_limit missing time_window."""

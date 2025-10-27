@@ -99,7 +99,7 @@ def _initialize_sentry_filtering():
 
 def before_send(event, hint):
     """Sentry before_send hook to filter events based on configured rules."""
-    if filter_engine and filter_engine.should_filter_event(event):
+    if filter_engine and filter_engine.should_filter_event(hint):
         return None
     return event
 

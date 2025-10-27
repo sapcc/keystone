@@ -45,11 +45,11 @@ class SentryFilterEngine:
         LOG.info("Initialized Sentry filter engine with %d rules", len(rules))
         self.debug_log("Debug logging enabled for Sentry filtering")
 
-    def should_filter_event(self, event: Dict[str, Any]) -> bool:
+    def should_filter_event(self, hint: Dict[str, Any]) -> bool:
         """Determine if an event should be filtered out.
 
         Args:
-            event: Sentry event dictionary
+            hint: Holds the original exception information
 
         Returns:
             True if event should be filtered out (not sent to Sentry)
@@ -60,7 +60,7 @@ class SentryFilterEngine:
             return False
 
         for rule in self.rules:
-            if self._rule_matches(rule, event):
+            if self._rule_matches(rule, hint):
                 rule_name = rule.get('name', 'unnamed')
                 self.debug_log("Rule '%s' matched, filtering event", rule_name)
                 LOG.info("Filtered Sentry event by rule: %s", rule_name)
@@ -72,7 +72,7 @@ class SentryFilterEngine:
     def _rule_matches(
         self,
         rule: Dict[str, Any],
-        event: Dict[str, Any],
+        hint: Dict[str, Any],
     ) -> bool:
         """Check if all conditions in a rule match the event.
 
@@ -83,7 +83,7 @@ class SentryFilterEngine:
 
         # exception_type
         if 'exception_type' in rule:
-            ok = self._match_exception_type(rule['exception_type'], event)
+            ok = self._match_exception_type(rule['exception_type'], hint)
             if ok:
                 self.debug_log(
                     "Rule '%s': exception_type condition matched",
@@ -98,7 +98,7 @@ class SentryFilterEngine:
 
         # message_pattern
         if 'message_pattern' in rule:
-            ok = self._match_message_pattern(rule['message_pattern'], event)
+            ok = self._match_message_pattern(rule['message_pattern'], hint)
             if ok:
                 self.debug_log(
                     "Rule '%s': message_pattern condition matched",
@@ -113,7 +113,7 @@ class SentryFilterEngine:
 
         # message_contains
         if 'message_contains' in rule:
-            ok = self._match_message_contains(rule['message_contains'], event)
+            ok = self._match_message_contains(rule['message_contains'], hint)
             if ok:
                 self.debug_log(
                     "Rule '%s': message_contains condition matched",
@@ -128,7 +128,7 @@ class SentryFilterEngine:
 
         # rate_limit
         if 'rate_limit' in rule:
-            ok = self._check_rate_limit(rule, event)
+            ok = self._check_rate_limit(rule)
             if ok:
                 self.debug_log(
                     "Rule '%s': rate_limit condition matched",
@@ -146,7 +146,7 @@ class SentryFilterEngine:
     def _match_exception_type(
         self,
         rule_type: str,
-        event: Dict[str, Any],
+        hint: Dict[str, Any],
     ) -> bool:
         """Check if event exception type matches rule.
 
@@ -157,43 +157,53 @@ class SentryFilterEngine:
         Returns:
             True if exception type matches
         """
-        exception_values = event.get('exception', {}).get('values', [])
-        for exc_value in exception_values:
-            if exc_value.get('type') == rule_type:
-                return True
-        return False
+        if 'exc_info' not in hint:
+            return False
+
+        exception_instance = hint['exc_info'][1]
+
+        if exception_instance is None:
+            return False
+
+        type_name = type(exception_instance).__name__
+        return type_name == rule_type
 
     def _match_message_pattern(
         self,
         pattern: str,
-        event: Dict[str, Any],
+        hint: Dict[str, Any],
     ) -> bool:
         """Check if event exception message matches regex pattern.
 
         Args:
             pattern: Regex pattern string
-            event: Sentry event dictionary
+            hint: Sentry event hint dictionary
 
         Returns:
             True if message matches pattern
         """
+        if 'exc_info' not in hint:
+            return False
+
+        exception_instance = hint['exc_info'][1]
+
+        if exception_instance is None:
+            return False
+
         # Cache compiled regex for performance
         if pattern not in self._compiled_regexes:
             self._compiled_regexes[pattern] = re.compile(pattern)
 
         regex = self._compiled_regexes[pattern]
-        exception_values = event.get('exception', {}).get('values', [])
 
-        for exc_value in exception_values:
-            message = exc_value.get('value', '')
-            if regex.search(message):
-                return True
-        return False
+        message = str(exception_instance)
+
+        return bool(regex.search(message))
 
     def _match_message_contains(
         self,
         search_string: str,
-        event: Dict[str, Any],
+        hint: Dict[str, Any],
     ) -> bool:
         """Check if event exception message contains string.
 
@@ -204,23 +214,26 @@ class SentryFilterEngine:
         Returns:
             True if message contains string
         """
-        exception_values = event.get('exception', {}).get('values', [])
-        for exc_value in exception_values:
-            message = exc_value.get('value', '')
-            if search_string in message:
-                return True
-        return False
+        if 'exc_info' not in hint:
+            return False
+
+        exception_instance = hint['exc_info'][1]
+
+        if exception_instance is None:
+            return False
+
+        message = str(exception_instance)
+
+        return search_string in message
 
     def _check_rate_limit(
         self,
-        rule: Dict[str, Any],
-        event: Dict[str, Any],
+        rule: Dict[str, Any]
     ) -> bool:
         """Check if rule should apply based on rate limiting.
 
         Args:
             rule: Rule dictionary with rate limiting parameters
-            event: Sentry event dictionary
 
         Returns:
             True if rule should apply (event should be filtered)
