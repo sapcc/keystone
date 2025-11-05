@@ -22,16 +22,16 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
     def setUp(self):
         """Set up test fixtures."""
         super(SentryFilterEngineTestCase, self).setUp()
-    
+
     def _create_hint_with_exception(self, exception_type_name, message):
         """Create a hint structure with a mock exception for testing."""
         # Create a custom exception class with the desired name
         class CustomException(Exception):
             pass
-        
+
         CustomException.__name__ = exception_type_name
         mock_exception = CustomException(message)
-        
+
         return {
             'exc_info': (CustomException, mock_exception, None)
         }
@@ -39,7 +39,7 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
     def test_no_rules_allows_all_events(self):
         """Test that engine with no rules allows all events."""
         engine = SentryFilterEngine([])
-        
+
         hint = self._create_hint_with_exception('TestError', 'test message')
 
         result = engine.should_filter_event(hint)
@@ -56,7 +56,9 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         self.assertTrue(result)
 
         # Non-matching hint should not be filtered
-        non_matching_hint = self._create_hint_with_exception('OtherError', 'test')
+        non_matching_hint = self._create_hint_with_exception(
+            'OtherError', 'test'
+        )
         result = engine.should_filter_event(non_matching_hint)
         self.assertFalse(result)
 
@@ -66,12 +68,16 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         engine = SentryFilterEngine(rules)
 
         # Matching hint should be filtered
-        matching_hint = self._create_hint_with_exception('Error', 'connection timeout error')
+        matching_hint = self._create_hint_with_exception(
+            'Error', 'connection timeout error'
+        )
         result = engine.should_filter_event(matching_hint)
         self.assertTrue(result)
 
         # Non-matching hint should not be filtered
-        non_matching_hint = self._create_hint_with_exception('Error', 'other error')
+        non_matching_hint = self._create_hint_with_exception(
+            'Error', 'other error'
+        )
         result = engine.should_filter_event(non_matching_hint)
         self.assertFalse(result)
 
@@ -81,12 +87,16 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         engine = SentryFilterEngine(rules)
 
         # Matching hint should be filtered
-        matching_hint = self._create_hint_with_exception('Error', 'error code 500')
+        matching_hint = self._create_hint_with_exception(
+            'Error', 'error code 500'
+        )
         result = engine.should_filter_event(matching_hint)
         self.assertTrue(result)
 
         # Non-matching hint should not be filtered
-        non_matching_hint = self._create_hint_with_exception('Error', 'error without number')
+        non_matching_hint = self._create_hint_with_exception(
+            'Error', 'error without number'
+        )
         result = engine.should_filter_event(non_matching_hint)
         self.assertFalse(result)
 
@@ -148,12 +158,16 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         engine = SentryFilterEngine(rules)
 
         # Hint matching both conditions should be filtered
-        matching_hint = self._create_hint_with_exception('TestError', 'timeout error')
+        matching_hint = self._create_hint_with_exception(
+            'TestError', 'timeout error'
+        )
         result = engine.should_filter_event(matching_hint)
         self.assertTrue(result)
 
         # Hint matching only one condition should not be filtered
-        partial_match_hint = self._create_hint_with_exception('TestError', 'other error')
+        partial_match_hint = self._create_hint_with_exception(
+            'TestError', 'other error'
+        )
         result = engine.should_filter_event(partial_match_hint)
         self.assertFalse(result)
 
