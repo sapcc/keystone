@@ -175,6 +175,14 @@ def _validate_rule(rule: Dict[str, Any], rule_index: int) -> Dict[str, Any]:
             raise RuleValidationError(
                 "'rate_limit.time_window' must be a positive number"
             )
+    # Validate sample parameters
+    if 'sample_rate' in rule:
+        sample_rate = rule['sample_rate']
+        if not isinstance(sample_rate, (int, float)):
+            raise RuleValidationError("'sample_rate' must be a number")
+
+        if not (0.0 < sample_rate <= 1.0):
+            raise RuleValidationError("'sample_rate' must be between 0 and 1")
 
     return rule
 
@@ -205,7 +213,8 @@ def create_example_config_file(output_file: str) -> None:
             },
             {
                 'name': 'filter_timeout_messages',
-                'message_contains': 'timeout'
+                'message_contains': 'timeout',
+                'sample_rate': 0.5
             },
             {
                 'name': 'filter_connection_refused',

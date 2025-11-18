@@ -340,6 +340,33 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
         rules = load_rules_from_file(config_file)
         self.assertEqual(len(rules), 1)
 
+    def test_sample_rate_not_number(self):
+        """Test validation fails when sample_rate is not a number."""
+        config_data = {
+            'rules': [{'name': 'test_rule',
+                       'exception_type': 'TestError',
+                       'sample_rate': 'high'}]
+        }
+        config_file = self._create_temp_config(config_data)
+
+        self.assertRaises(
+            RuleValidationError, load_rules_from_file, config_file
+        )
+
+    def test_sample_rate_out_of_bounds(self):
+        """Test validation fails when sample_rate is out of (0,1] range."""
+        for invalid_rate in [-0.1, 1.5, 2]:
+            config_data = {
+                'rules': [{'name': 'test_rule',
+                           'exception_type': 'TestError',
+                           'sample_rate': invalid_rate}]
+            }
+            config_file = self._create_temp_config(config_data)
+
+            self.assertRaises(
+                RuleValidationError, load_rules_from_file, config_file
+            )
+
     def test_valid_message_pattern(self):
         """Test validation succeeds with valid regex pattern."""
         config_data = {

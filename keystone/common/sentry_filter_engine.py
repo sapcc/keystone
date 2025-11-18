@@ -14,6 +14,7 @@ from collections import defaultdict
 from collections import deque
 import logging
 import re
+import secrets
 import time
 from typing import Any
 from typing import Dict
@@ -138,6 +139,28 @@ class SentryFilterEngine:
                 self.debug_log(
                     "Rule '%s': rate_limit condition did not match",
                     rule_name,
+                )
+                return False
+
+        # sample_rate
+        if 'sample_rate' in rule:
+            sample_rate = rule['sample_rate']
+            rand_value = secrets.SystemRandom().random()
+            if rand_value <= sample_rate:
+                self.debug_log(
+                    "Rule '%s': sample_rate condition"
+                    " matched (%.4f <= %.4f)",
+                    rule_name,
+                    rand_value,
+                    sample_rate,
+                )
+            else:
+                self.debug_log(
+                    "Rule '%s': sample_rate condition"
+                    " did not match (%.4f > %.4f)",
+                    rule_name,
+                    rand_value,
+                    sample_rate,
                 )
                 return False
 

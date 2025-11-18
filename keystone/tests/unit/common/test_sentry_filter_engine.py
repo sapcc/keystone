@@ -148,6 +148,29 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         result = engine.should_filter_event(hint)
         self.assertFalse(result)
 
+    def test_sampling_mechanism(self):
+        """Test that sampling mechanism works as expected."""
+        rules = [{
+            'name': 'sampled_rule',
+            'exception_type': 'TestError',
+            'sample_rate': 0.5
+        }]
+        engine = SentryFilterEngine(rules)
+        hint = self._create_hint_with_exception('TestError', 'test')
+
+        # Patch random.random to control sampling outcome
+        with mock.patch('keystone.common.sentry_filter_'
+                        'engine.secrets.SystemRandom.random') as mock_random:
+            # Simulate random value below sample rate (should filter)
+            mock_random.return_value = 0.4
+            result = engine.should_filter_event(hint)
+            self.assertTrue(result)
+
+            # Simulate random value above sample rate (should not filter)
+            mock_random.return_value = 0.6
+            result = engine.should_filter_event(hint)
+            self.assertFalse(result)
+
     def test_multiple_conditions_must_all_match(self):
         """Test that rules with multiple conditions require all to match."""
         rules = [{
