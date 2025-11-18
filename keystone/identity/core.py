@@ -1549,11 +1549,27 @@ class Manager(manager.Manager):
         # Note(knikolla): The shadowing operation can be cached,
         # however we need to update the expiring group memberships.
         if group_ids:
+            membership_changed = False
             for group_id in group_ids:
-                LOG.info("Adding user [%s] to group [%s].",
-                         user_dict, group_id)
-                PROVIDERS.shadow_users_api.add_user_to_group_expires(
-                    user_dict['id'], group_id)
+                LOG.info(
+                    "Adding user [%s] to group [%s].", user_dict, group_id
+                )
+                # add_user_to_group_expires returns True if this is a new membership
+                if PROVIDERS.shadow_users_api.add_user_to_group_expires(
+                    user_dict['id'], group_id
+                ):
+                    membership_changed = True
+
+            # Only invalidate cache if group membership actually changed
+            if membership_changed:
+                LOG.debug(
+                    'Group membership changed for federated user %s, '
+                    'invalidating role assignment cache',
+                    user_dict['id'],
+                )
+                PROVIDERS.assignment_api.invalidate_user_role_assignments_cache(
+                    user_dict['id']
+                )
         return user_dict
 
 

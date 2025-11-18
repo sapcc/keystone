@@ -1095,6 +1095,23 @@ class Manager(manager.Manager):
             self.delete_system_grant_for_user(user_id, assignment['id'])
         COMPUTED_ASSIGNMENTS_REGION.invalidate()
 
+    def invalidate_user_role_assignments_cache(self, user_id):
+        """Invalidate cached role assignments when federated group membership changes."""
+        LOG.debug(
+            'Invalidating caches for user %s due to group membership changes',
+            user_id,
+        )
+
+        # Invalidate role assignment cache
+        COMPUTED_ASSIGNMENTS_REGION.invalidate()
+
+        # Invalidate token cache
+        reason = (
+            f'Invalidating token cache for user {user_id} due to '
+            'federated group membership changes.'
+        )
+        notifications.invalidate_token_cache_notification(reason)
+
     def check_system_grant_for_user(self, user_id, role_id):
         """Check if a user has a specific role on the system.
 
