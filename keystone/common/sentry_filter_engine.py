@@ -146,7 +146,7 @@ class SentryFilterEngine:
         if 'sample_rate' in rule:
             sample_rate = rule['sample_rate']
             rand_value = secrets.SystemRandom().random()
-            if rand_value <= sample_rate:
+            if rand_value > sample_rate:
                 self.debug_log(
                     "Rule '%s': sample_rate condition"
                     " matched (%.4f <= %.4f)",

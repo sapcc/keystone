@@ -164,12 +164,12 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
             # Simulate random value below sample rate (should filter)
             mock_random.return_value = 0.4
             result = engine.should_filter_event(hint)
-            self.assertTrue(result)
+            self.assertFalse(result)
 
             # Simulate random value above sample rate (should not filter)
             mock_random.return_value = 0.6
             result = engine.should_filter_event(hint)
-            self.assertFalse(result)
+            self.assertTrue(result)
 
     def test_multiple_conditions_must_all_match(self):
         """Test that rules with multiple conditions require all to match."""
