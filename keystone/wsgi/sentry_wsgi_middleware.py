@@ -14,6 +14,7 @@ import logging
 import os
 
 import sentry_sdk
+from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations import wsgi
 from sentry_sdk.scrubber import DEFAULT_DENYLIST
 from sentry_sdk.scrubber import EventScrubber
@@ -119,6 +120,13 @@ def _initialize_sentry_sdk():
             send_default_pii=False,
             event_scrubber=EventScrubber(denylist=denylist),
             before_send=before_send,
+            integrations=[
+                LoggingIntegration(
+                    sentry_logs_level=logging.INFO,
+                    level=logging.INFO,
+                    event_level=logging.ERROR,
+                ),
+            ],
             debug=True,
         )
 
