@@ -256,3 +256,35 @@ class ShadowUsers(base.ShadowUsersDriverBase):
                 )
             )
             return True  # New membership added
+
+    def cleanup_stale_group_memberships(self, user_id, idp_id, current_group_ids):
+        """Remove expiring group memberships that are no longer in the IdP assertion.
+
+        This method identifies and removes ExpiringUserGroupMembership records
+        for a user that are not present in the current authentication assertion
+        from the IdP. This ensures that when a user is removed from a group in
+        the IdP, the change is reflected immediately in Keystone rather than
+        waiting for the membership to expire via TTL.
+
+        :param user_id: The federated user ID
+        :param idp_id: The identity provider ID
+        :param current_group_ids: List of group IDs from the current assertion
+        :returns: List of group IDs that were removed (for cache invalidation)
+        """
+        with sql.session_for_write() as session:
+            # Get all existing expiring memberships for this user and IdP
+            query = session.query(model.ExpiringUserGroupMembership)
+            query = query.filter_by(user_id=user_id, idp_id=idp_id)
+            existing_memberships = query.all()
+
+            # Identify memberships that should be removed
+            current_group_set = set(current_group_ids)
+            removed_group_ids = []
+
+            for membership in existing_memberships:
+                if membership.group_id not in current_group_set:
+                    # This membership is no longer in the IdP assertion
+                    removed_group_ids.append(membership.group_id)
+                    session.delete(membership)
+
+            return removed_group_ids

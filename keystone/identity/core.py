@@ -24,21 +24,16 @@ import uuid
 
 from oslo_config import cfg
 from oslo_log import log
+from oslo_utils import timeutils
 from pycadf import reason
 
-from keystone import assignment  # TODO(lbragstad): Decouple this dependency
-from keystone.common import cache
-from keystone.common import driver_hints
-from keystone.common import manager
-from keystone.common import provider_api
-from keystone.common.validation import validators
 import keystone.conf
-from keystone import exception
+from keystone import assignment  # TODO(lbragstad): Decouple this dependency
+from keystone import exception, notifications
+from keystone.common import cache, driver_hints, manager, provider_api
+from keystone.common.validation import validators
 from keystone.i18n import _
 from keystone.identity.mapping_backends import mapping
-from keystone import notifications
-from oslo_utils import timeutils
-
 
 CONF = keystone.conf.CONF
 
@@ -1548,28 +1543,43 @@ class Manager(manager.Manager):
 
         # Note(knikolla): The shadowing operation can be cached,
         # however we need to update the expiring group memberships.
-        if group_ids:
-            membership_changed = False
-            for group_id in group_ids:
-                LOG.info(
-                    "Adding user [%s] to group [%s].", user_dict, group_id
-                )
-                # add_user_to_group_expires returns True if this is a new membership
-                if PROVIDERS.shadow_users_api.add_user_to_group_expires(
-                    user_dict['id'], group_id
-                ):
-                    membership_changed = True
 
-            # Only invalidate cache if group membership actually changed
-            if membership_changed:
-                LOG.debug(
-                    'Group membership changed for federated user %s, '
-                    'invalidating role assignment cache',
-                    user_dict['id'],
-                )
-                PROVIDERS.assignment_api.invalidate_user_role_assignments_cache(
-                    user_dict['id']
-                )
+        if group_ids is None:
+            group_ids = []
+
+        membership_changed = False
+
+        # Add new group memberships
+        for group_id in group_ids:
+            LOG.info(
+                "Adding user [%s] to group [%s].", user_dict, group_id
+            )
+            if PROVIDERS.shadow_users_api.add_user_to_group_expires(
+                user_dict['id'], group_id
+            ):
+                membership_changed = True
+
+        removed_group_ids = PROVIDERS.shadow_users_api.cleanup_stale_group_memberships(
+            user_dict['id'], idp_id, group_ids
+        )
+
+        if removed_group_ids:
+            LOG.debug(
+                'User %s was removed from groups %s, marking as membership changed',
+                user_dict['id'],
+                removed_group_ids,
+            )
+            membership_changed = True
+
+        if membership_changed:
+            LOG.debug(
+                'Group membership changed for federated user %s, '
+                'invalidating role assignment cache',
+                user_dict['id'],
+            )
+            PROVIDERS.assignment_api.invalidate_user_role_assignments_cache(
+                user_dict['id']
+            )
         return user_dict
 
 
