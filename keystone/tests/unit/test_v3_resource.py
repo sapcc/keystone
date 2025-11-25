@@ -10,12 +10,15 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import contextlib
 import uuid
 
 import http.client
 from testtools import matchers
+from unittest import mock
 
 from keystone.common import provider_api
+from keystone.common import rbac_enforcer
 import keystone.conf
 from keystone.credential.providers import fernet as credential_fernet
 from keystone import exception
@@ -27,6 +30,7 @@ from keystone.tests.unit import utils as test_utils
 
 CONF = keystone.conf.CONF
 PROVIDERS = provider_api.ProviderAPIs
+ENFORCER = rbac_enforcer.RBACEnforcer
 
 _DEFAULT_TAG = ['single_tag']
 _DEFAULT_TAGS = [None, [], ['vc-a-0', 'tag_1', 'tag_2'], _DEFAULT_TAG]
@@ -1875,6 +1879,257 @@ class ResourceTestCase(test_v3.RestfulTestCase,
             '/projects/%(project_id)s/tags' % {'project_id': project['id']},
             body={'tags': tags},
             expected_status=http.client.BAD_REQUEST)
+
+    @contextlib.contextmanager
+    def _provider_tags_rule_forbidden(self, name):
+        """Patch provider_tags rule to be forbidden."""
+        policy = f"identity:{name}:provider_tags"
+        orig_fn = ENFORCER()._enforce
+
+        def _enforce(*args, **kwargs):
+            if kwargs.get('action') == policy:
+                raise exception.ForbiddenAction(action=kwargs['action'])
+            return orig_fn(*args, **kwargs)
+
+        with mock.patch.object(ENFORCER, '_enforce', side_effect=_enforce):
+            yield
+
+    def test_provider_tags_project_post(self):
+        """Normal users cannot create projects while specifying provider tags.
+
+        Normal users get an error back on project creation.
+        Admins can create projects with provider tags.
+        """
+        self.config_fixture.config(provider_tag_prefix=['provider-'])
+        tags = ['special', 'provider-special']
+
+        with self._provider_tags_rule_forbidden('create_project'):
+            ref = unit.new_project_ref(domain_id=self.domain_id, tags=tags)
+            r = self.post(
+                '/projects',
+                body={'project': ref},
+                expected_status=http.client.FORBIDDEN)
+
+        ref = unit.new_project_ref(domain_id=self.domain_id, tags=tags)
+        r = self.post(
+            '/projects',
+            body={'project': ref})
+        self.assertValidProjectResponse(r, ref)
+
+    def test_provider_tags_project_post_empty_list(self):
+        """Normal users cannot create projects while specifying provider tags.
+
+        Normal users get an error back on project creation.
+        Admins can create projects with provider tags.
+        """
+        self.config_fixture.config(provider_tag_prefix=['provider-'])
+        tags = []
+
+        with self._provider_tags_rule_forbidden('create_project'):
+            ref = unit.new_project_ref(domain_id=self.domain_id, tags=tags)
+            r = self.post(
+                '/projects',
+                body={'project': ref})
+        self.assertValidProjectResponse(r, ref)
+
+        ref = unit.new_project_ref(domain_id=self.domain_id, tags=tags)
+        r = self.post(
+            '/projects',
+            body={'project': ref})
+        self.assertValidProjectResponse(r, ref)
+
+    def test_provider_tags_project_patch(self):
+        """Normal users cannot add/remove provider tags when updating project.
+
+        We keep provider-tags or don't add them for normal users.
+        Admins can remove/add provider-tags when updating a project.
+        """
+        project, _ = self._create_project_and_tags()
+        self.config_fixture.config(provider_tag_prefix=['provider-'])
+        tags = ['special', 'provider-special']
+        PROVIDERS.resource_api.update_project_tags(project['id'], tags)
+
+        with self._provider_tags_rule_forbidden('update_project'):
+            project['tags'] = ['more-special']
+            self.patch(
+                f"/projects/{project['id']}",
+                body={'project': project})
+            self.assertListEqual(
+                sorted(['more-special', 'provider-special']),
+                PROVIDERS.resource_api.list_project_tags(project['id']))
+
+            project['tags'] = ['special', 'provider-more-special']
+            self.patch(
+                f"/projects/{project['id']}",
+                body={'project': project})
+            self.assertListEqual(
+                sorted(['special', 'provider-special']),
+                PROVIDERS.resource_api.list_project_tags(project['id']))
+
+            project['tags'] = []
+            self.patch(
+                f"/projects/{project['id']}",
+                body={'project': project})
+            self.assertListEqual(
+                ['provider-special'],
+                PROVIDERS.resource_api.list_project_tags(project['id']))
+
+        project['tags'] = ['provider-more-special']
+        self.patch(
+            f"/projects/{project['id']}",
+            body={'project': project})
+        self.assertListEqual(
+            ['provider-more-special'],
+            PROVIDERS.resource_api.list_project_tags(project['id']))
+
+        project['tags'] = []
+        self.patch(
+            f"/projects/{project['id']}",
+            body={'project': project})
+        self.assertListEqual(
+            [],
+            PROVIDERS.resource_api.list_project_tags(project['id']))
+
+    def test_provider_tags_project_tags_put(self):
+        """Normal users cannot add provider tags when setting project tags.
+
+        List of tags gets filtered for provider tags. The rest is set.
+        For admins, the whole list is set.
+        """
+        project, _ = self._create_project_and_tags()
+        self.config_fixture.config(provider_tag_prefix=['provider-'])
+        tags = ['special', 'provider-special']
+
+        with self._provider_tags_rule_forbidden('update_project_tags'):
+            self.put(
+                f"/projects/{project['id']}/tags",
+                body={'tags': tags},
+                expected_status=http.client.OK)
+        self.assertListEqual(
+            ['special'],
+            PROVIDERS.resource_api.list_project_tags(project['id']))
+
+        self.put(
+            '/projects/%(project_id)s/tags' % {'project_id': project['id']},
+            body={'tags': tags},
+            expected_status=http.client.OK)
+        self.assertListEqual(
+            sorted(tags),
+            sorted(PROVIDERS.resource_api.list_project_tags(project['id'])))
+
+    def test_provider_tags_project_tags_put_empty_list(self):
+        """Normal users cannot remove provider tags with an empty list.
+
+        All tags get remove except the provider tags.
+        For admins, all tags get removed.
+        """
+        project, _ = self._create_project_and_tags()
+        self.config_fixture.config(provider_tag_prefix=['provider-'])
+        tags = ['special', 'provider-special']
+        PROVIDERS.resource_api.update_project_tags(project['id'], tags)
+        new_tags = []
+
+        with self._provider_tags_rule_forbidden('update_project_tags'):
+            self.put(
+                f"/projects/{project['id']}/tags",
+                body={'tags': new_tags},
+                expected_status=http.client.OK)
+        self.assertListEqual(
+            ['provider-special'],
+            PROVIDERS.resource_api.list_project_tags(project['id']))
+
+        self.put(
+            '/projects/%(project_id)s/tags' % {'project_id': project['id']},
+            body={'tags': new_tags},
+            expected_status=http.client.OK)
+        self.assertListEqual(
+            [],
+            sorted(PROVIDERS.resource_api.list_project_tags(project['id'])))
+
+    def test_provider_tags_project_tags_delete(self):
+        """Normal users cannot delete provider tags.
+
+        All but the provider tags get deleted.
+        For admins, everything gets deleted.
+        """
+        project, _ = self._create_project_and_tags()
+        self.config_fixture.config(provider_tag_prefix=['provider-'])
+        tags = ['special', 'provider-special']
+        PROVIDERS.resource_api.update_project_tags(project['id'], tags)
+
+        with self._provider_tags_rule_forbidden('delete_project_tags'):
+            self.delete(
+                f"/projects/{project['id']}/tags",
+                expected_status=http.client.NO_CONTENT)
+        self.assertListEqual(
+            ['provider-special'],
+            PROVIDERS.resource_api.list_project_tags(project['id']))
+
+        PROVIDERS.resource_api.update_project_tags(project['id'], tags)
+        self.delete(
+            f"/projects/{project['id']}/tags",
+            expected_status=http.client.NO_CONTENT)
+        self.assertListEqual(
+            [],
+            PROVIDERS.resource_api.list_project_tags(project['id']))
+
+    def test_provider_tags_project_tag_put(self):
+        """Normal users cannot add a provider tag.
+
+        Normal users get an error back.
+        Admins can add the tag.
+        """
+        project, _ = self._create_project_and_tags()
+        self.config_fixture.config(provider_tag_prefix=['provider-'])
+        PROVIDERS.resource_api.update_project_tags(project['id'], [])
+        tags = ['special', 'provider-special']
+
+        with self._provider_tags_rule_forbidden('create_project_tag'):
+            self.put(
+                f"/projects/{project['id']}/tags/{tags[0]}",
+                expected_status=http.client.CREATED)
+            self.put(
+                f"/projects/{project['id']}/tags/{tags[1]}",
+                expected_status=http.client.FORBIDDEN)
+        self.assertListEqual(
+            ['special'],
+            PROVIDERS.resource_api.list_project_tags(project['id']))
+
+        self.put(
+            f"/projects/{project['id']}/tags/{tags[1]}",
+            expected_status=http.client.CREATED)
+        self.assertListEqual(
+            sorted(tags),
+            sorted(PROVIDERS.resource_api.list_project_tags(project['id'])))
+
+    def test_provider_tags_project_tag_delete(self):
+        """Normal users cannot delete a provider tag.
+
+        Normal users get an erro back for provider tags.
+        Admins can remove the tag.
+        """
+        project, _ = self._create_project_and_tags()
+        self.config_fixture.config(provider_tag_prefix=['provider-'])
+        tags = ['special', 'provider-special']
+        PROVIDERS.resource_api.update_project_tags(project['id'], tags)
+
+        with self._provider_tags_rule_forbidden('delete_project_tag'):
+            self.delete(
+                f"/projects/{project['id']}/tags/{tags[0]}",
+                expected_status=http.client.NO_CONTENT)
+            self.delete(
+                f"/projects/{project['id']}/tags/{tags[1]}",
+                expected_status=http.client.FORBIDDEN)
+        self.assertListEqual(
+            ['provider-special'],
+            PROVIDERS.resource_api.list_project_tags(project['id']))
+
+        self.delete(
+            f"/projects/{project['id']}/tags/{tags[1]}",
+            expected_status=http.client.NO_CONTENT)
+        self.assertListEqual(
+            [],
+            PROVIDERS.resource_api.list_project_tags(project['id']))
 
     def test_list_projects_by_user_with_inherited_role(self):
         """Ensure the cache is invalidated when creating/deleting a project."""
