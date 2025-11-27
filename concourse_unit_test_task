@@ -23,4 +23,5 @@ export \
   KEYSTONE_IDENTITY_BACKEND=ldap \
   KEYSTONE_CLEAR_LDAP=yes \
   ENABLE_LDAP_LIVE_TEST=true
-tox -e py312
+tox -e py312 \
+  --skip-missing-interpreters=false
