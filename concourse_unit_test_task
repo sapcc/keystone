@@ -16,6 +16,7 @@ pip install -U \
 cd source
 apt-get install -y \
   $(bindep -b test)
+git config --global --add safe.directory /source
 
 export KEYSTONE_IDENTITY_BACKEND=ldap
 export UPPER_CONSTRAINTS_FILE=https://raw.githubusercontent.com/sapcc/requirements/stable/2025.1-m3/upper-constraints.txt
