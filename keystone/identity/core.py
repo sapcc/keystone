@@ -1571,13 +1571,14 @@ class Manager(manager.Manager):
             )
             membership_changed = True
 
+        # Only revoke tokens if group membership actually changed
         if membership_changed:
             LOG.debug(
                 'Group membership changed for federated user %s, '
-                'invalidating role assignment cache',
+                'revoking tokens',
                 user_dict['id'],
             )
-            PROVIDERS.assignment_api.invalidate_user_role_assignments_cache(
+            PROVIDERS.assignment_api.invalidate_user_cache_on_group_change(
                 user_dict['id']
             )
         return user_dict

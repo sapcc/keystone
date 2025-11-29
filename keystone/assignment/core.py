@@ -19,16 +19,11 @@ import itertools
 
 from oslo_log import log
 
-from keystone.common import cache
-from keystone.common import driver_hints
-from keystone.common import manager
-from keystone.common import provider_api
-from keystone.common.resource_options import options as ro_opt
 import keystone.conf
-from keystone import exception
+from keystone import exception, notifications
+from keystone.common import cache, driver_hints, manager, provider_api
+from keystone.common.resource_options import options as ro_opt
 from keystone.i18n import _
-from keystone import notifications
-
 
 CONF = keystone.conf.CONF
 LOG = log.getLogger(__name__)
@@ -1095,21 +1090,33 @@ class Manager(manager.Manager):
             self.delete_system_grant_for_user(user_id, assignment['id'])
         COMPUTED_ASSIGNMENTS_REGION.invalidate()
 
-    def invalidate_user_role_assignments_cache(self, user_id):
-        """Invalidate cached role assignments when federated group membership changes."""
+    def invalidate_user_cache_on_group_change(self, user_id):
+        """Invalidate user cache when group membership changes.
+
+        This method is called when a federated user's group membership changes
+        in the IdP. It ensures that:
+        1. Role assignment cache is invalidated
+        2. All existing tokens for the user are revoked
+        3. Token cache is invalidated
+
+        This prevents old tokens with stale group memberships from being used.
+        """
         LOG.debug(
-            'Invalidating caches for user %s due to group membership changes',
-            user_id,
+            'Revoking tokens for federated user %(user_id)s due to group '
+            'membership changes in the identity provider',
+            {'user_id': user_id}
         )
 
         # Invalidate role assignment cache
         COMPUTED_ASSIGNMENTS_REGION.invalidate()
 
-        # Invalidate token cache
-        reason = (
-            f'Invalidating token cache for user {user_id} due to '
-            'federated group membership changes.'
+        # Persist revocation event
+        notifications.Audit.internal(
+            notifications.PERSIST_REVOCATION_EVENT_FOR_USER, user_id
         )
+
+        # Invalidate token cache
+        reason = 'User %(user_id)s group membership changed' % {'user_id': user_id}
         notifications.invalidate_token_cache_notification(reason)
 
     def check_system_grant_for_user(self, user_id, role_id):
