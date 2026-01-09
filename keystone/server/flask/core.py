@@ -30,6 +30,7 @@ from keystone.server.flask import application
 from keystone.server.flask.request_processing.middleware import auth_context
 from keystone.server.flask.request_processing.middleware import url_normalize
 
+# CCloud
 
 # NOTE(morgan): Middleware Named Tuple with the following values:
 #   * "namespace": namespace for the entry_point
@@ -95,16 +96,18 @@ _CC_MIDDLEWARE = (
 # AuthContextMiddleware
 _CC_MIDDLEWARE = (
     # CCloud: add watcher middleware
-    _Middleware(namespace='watcher.middleware',
-                ep='watcher',
-                conf={'service_type': 'identity',
-                      'config_file': '/etc/keystone/watcher.yaml',
-                      'include_initiator_user_id_in_metric': 'true',
-                      'include_target_project_id_in_metric': 'false'}),
+    _Middleware(
+        namespace='watcher.middleware',
+        ep='watcher',
+        conf={
+            'service_type': 'identity',
+            'config_file': '/etc/keystone/watcher.yaml',
+            'include_initiator_user_id_in_metric': 'true',
+            'include_target_project_id_in_metric': 'false',
+        },
+    ),
     # CCloud: add lifesaver middleware
-    _Middleware(namespace='lifesaver.middleware',
-                ep='lifesaver',
-                conf={}),
+    _Middleware(namespace='lifesaver.middleware', ep='lifesaver', conf={}),
     # CCloud: add rate_limit middleware
     _Middleware(namespace='rate_limit.middleware',
                 ep='rate-limit',
@@ -186,8 +189,9 @@ def setup_app_middleware(app):
         if mw.ep == 'watcher' and os.environ.get('WATCHER_DISABLED', None):
             continue
 
-        loaded = stevedore.DriverManager(mw.namespace, mw.ep,
-                                         invoke_on_load=False)
+        loaded = stevedore.DriverManager(
+            mw.namespace, mw.ep, invoke_on_load=False
+        )
         factory_func = loaded.driver.factory({}, **mw.conf)
         app.wsgi_app = factory_func(app.wsgi_app)
 
