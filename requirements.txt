@@ -42,4 +42,4 @@ python-ldap>=3.0.0 # PSF
 ldappool>=2.3.1 # MPL
 python-memcached>=1.56 # PSF
 
-sentry-sdk==2.27.0 # MIT
+sentry-sdk==1.45.1 # MIT
