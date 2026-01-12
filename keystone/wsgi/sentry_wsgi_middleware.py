@@ -113,11 +113,14 @@ def _initialize_sentry_sdk():
             "SENTRY_DSN not found in environment, Sentry disabled"
         )
         return
+    
+    release_tag = os.environ.get("IMAGE_TAG", "unknown")
 
     try:
         sentry_sdk.init(
             dsn=sentry_dsn,
             send_default_pii=False,
+            release=release_tag,
             event_scrubber=EventScrubber(denylist=denylist),
             before_send=before_send,
             integrations=[
