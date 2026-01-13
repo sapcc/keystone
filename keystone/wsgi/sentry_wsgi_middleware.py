@@ -113,7 +113,8 @@ def _initialize_sentry_sdk():
             "SENTRY_DSN not found in environment, Sentry disabled"
         )
         return
-    
+    if sentry_dsn.startswith("requests+"):
+        sentry_dsn = sentry_dsn[len("requests+") :]
     release_tag = os.environ.get("IMAGE_TAG", "unknown")
 
     try:
@@ -125,12 +126,11 @@ def _initialize_sentry_sdk():
             before_send=before_send,
             integrations=[
                 LoggingIntegration(
-                    sentry_logs_level=logging.INFO,
                     level=logging.INFO,
                     event_level=logging.ERROR,
                 ),
             ],
-            debug=True,
+            debug=False,
         )
 
         logger.info("Sentry SDK initialized successfully")
