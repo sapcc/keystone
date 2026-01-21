@@ -25,18 +25,11 @@ brew services start memcached
 # brew services stop memcached
 ```
 
-**set environment variables:**
-```shell
-export \
-  LDFLAGS="-L$(brew --prefix openssl)/lib \
-           -L$(brew --prefix openldap)/lib" \
-  CFLAGS="-I$(brew --prefix openssl)/include \
-          -I$(brew --prefix openldap)/include"
-```
+
 
 **check if memcached is running:**
 ```
-telnet localhost 11211                                                  
+telnet localhost 11211
 
 Trying 127.0.0.1...
 Connected to localhost.
@@ -47,7 +40,7 @@ Connection closed by foreign host.
 
 this would be an error:
 ```
-telnet localhost 11211                                                  
+telnet localhost 11211
 
 Trying 127.0.0.1...
 telnet: connect to address 127.0.0.1: Connection refused
@@ -56,28 +49,17 @@ telnet: connect to address ::1: Connection refused
 telnet: Unable to connect to remote host
 ```
 
-**setup python virtual environment with `uv`:**
-```shell
-uv venv --python 3.12 --prompt "venv"
-```
-
-**activate the virtual environment:**
-```shell
-source .venv/bin/activate
-```
-
 **install dependencies:**
 ```shell
-uv pip install -r custom-requirements.txt
+export \
+  LDFLAGS="-L$(brew --prefix openssl)/lib \
+           -L$(brew --prefix openldap)/lib" \
+  CFLAGS="-I$(brew --prefix openssl)/include \
+          -I$(brew --prefix openldap)/include" \
+  CPPFLAGS="-I$(brew --prefix openssl)/include \
+            -I$(brew --prefix openldap)/include"
 
-# latest dependencies
-uv pip install -c https://releases.openstack.org/constraints/upper/master -e .
-
-# needed to run locally
-uv pip install uwsgi
-
-# needed for mysql database connection
-uv pip install pymysql
+uv pip install -r custom-requirements.txt -c https://releases.openstack.org/constraints/upper/master -e . uwsgi pymysql
 ```
 
 **run config generator or write minimal config:**
@@ -138,26 +120,17 @@ Ensure that the directory and its contents are accessible by the user under whic
 sudo chmod 0700 /etc/keystone/fernet-keys/
 ```
 
-**use these test environment vars:**
-```shell
-export \
-OS_AUTH_URL=http://localhost:8000/v3 \
-OS_IDENTITY_API_VERSION=3 \
-OS_PASSWORD=s3cr3t \
-OS_PROJECT_DOMAIN_ID=default \
-OS_PROJECT_NAME=admin \
-OS_USERNAME=admin \
-OS_USER_DOMAIN_ID=default
-```
 
-**Run MySQL docker database:**
+
+**Run MariaDB docker database:**
 ```shell
-docker run -d --rm --name keystone-mysql \
+docker run \
+  --rm \
   -p 3306:3306 \
-  --hostname keystone-mysql --name keystone-mysql \
-  --env MYSQL_USER=keystone --env MYSQL_PASSWORD=keystone --env MYSQL_DATABASE=keystone \
-  --env MYSQL_ROOT_PASSWORD=insecure_slave \
-  mysql:8.4
+  --hostname keystone-mariadb --name keystone-mariadb \
+  --env MARIADB_USER=keystone --env MARIADB_PASSWORD=keystone --env MARIADB_DATABASE=keystone \
+  --env MARIADB_ROOT_PASSWORD=insecure_slave \
+  keppel.eu-de-1.cloud.sap/ccloud-dockerhub-mirror/library/mariadb:latest
 ```
 
 **prepare database:**
@@ -180,37 +153,24 @@ DISABLE_ENDPOINTS=true KEYSTONE_PORT=8000 ADMIN_PASSWORD=s3cr3t tools/sample_dat
 2026-01-06 10:13:37.501 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created project admin
 2026-01-06 10:13:37.527 86703 WARNING keystone.common.password_hashing [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Truncating password to algorithm specific maximum length 72 characters.: keystone.exception.UserNotFound: Could not find user: admin.
 2026-01-06 10:13:37.740 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created user admin
-2026-01-06 10:13:37.748 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created role reader
-2026-01-06 10:13:37.753 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created role member
-2026-01-06 10:13:37.759 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created implied role where aba2a46bda9347f7a7dc916c0ee703e3 implies dde10fc1b79b44a9a12d68ba7a541093
-2026-01-06 10:13:37.763 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created role manager
-2026-01-06 10:13:37.769 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created implied role where c96522926d1d4b28baa1811085a83d93 implies aba2a46bda9347f7a7dc916c0ee703e3
-2026-01-06 10:13:37.773 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created role admin
-2026-01-06 10:13:37.780 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created implied role where 260c8151ce564bcb9c227adea8ff7908 implies c96522926d1d4b28baa1811085a83d93
-2026-01-06 10:13:37.785 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created role service
-2026-01-06 10:13:37.792 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Granted role admin on project admin to user admin.
-2026-01-06 10:13:37.796 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Granted role admin on the system to user admin.
-2026-01-06 10:13:37.800 86703 WARNING py.warnings [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] /Users/I761196/dev/sci/keystone-local-test-delete-after/.venv/lib/python3.12/site-packages/pycadf/identifier.py:70: UserWarning: Invalid uuid: RegionOne. To ensure interoperability, identifiers should be a valid uuid.
-  warnings.warn(('Invalid uuid: %s. To ensure interoperability, '
-
-2026-01-06 10:13:37.801 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created region RegionOne
-2026-01-06 10:13:37.810 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created public endpoint http://localhost:8000/v3
-2026-01-06 10:13:37.815 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created internal endpoint http://localhost:8000/v3
-2026-01-06 10:13:37.820 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created admin endpoint http://localhost:8000/v3
-Failed to discover available identity versions when contacting http://localhost:8000/v3. Attempting to parse version from URL.
-Unable to establish connection to http://localhost:8000/v3/auth/tokens: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /v3/auth/tokens (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x108b73ed0>: Failed to establish a new connection: [Errno 61] Connection refused'))
-Failed to discover available identity versions when contacting http://localhost:8000/v3. Attempting to parse version from URL.
-Unable to establish connection to http://localhost:8000/v3/auth/tokens: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /v3/auth/tokens (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10cf8bed0>: Failed to establish a new connection: [Errno 61] Connection refused'))
-Failed to discover available identity versions when contacting http://localhost:8000/v3. Attempting to parse version from URL.
-Unable to establish connection to http://localhost:8000/v3/auth/tokens: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /v3/auth/tokens (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10c82fed0>: Failed to establish a new connection: [Errno 61] Connection refused'))
-Failed to discover available identity versions when contacting http://localhost:8000/v3. Attempting to parse version from URL.
-Unable to establish connection to http://localhost:8000/v3/auth/tokens: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /v3/auth/tokens (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10a723ed0>: Failed to establish a new connection: [Errno 61] Connection refused'))
 ...
 ```
 
 **running the local keystone instance:**
 ```shell
 uwsgi --http 127.0.0.1:8000 --eval "from keystone.server.wsgi import initialize_public_application; application = initialize_public_application()"
+```
+
+**use these test environment vars:**
+```shell
+export \
+OS_AUTH_URL=http://localhost:8000/v3 \
+OS_IDENTITY_API_VERSION=3 \
+OS_PASSWORD=s3cr3t \
+OS_PROJECT_DOMAIN_ID=default \
+OS_PROJECT_NAME=admin \
+OS_USERNAME=admin \
+OS_USER_DOMAIN_ID=default
 ```
 
 **test keystone instance with this command:**
