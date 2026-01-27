@@ -157,6 +157,9 @@ DISABLE_ENDPOINTS=true KEYSTONE_PORT=8000 ADMIN_PASSWORD=s3cr3t tools/sample_dat
 **running the local keystone instance:**
 ```shell
 uwsgi --http 127.0.0.1:8000 --eval "from keystone.server.wsgi import initialize_public_application; application = initialize_public_application()"
+# or use this command to start the server if you are using pyenv
+# otherwise you need to provide the path to the keystone-wsgi-public path
+uwsgi --http 127.0.0.1:8000 --wsgi-file $(pyenv which keystone-wsgi-public)
 ```
 
 **use these test environment vars:**
