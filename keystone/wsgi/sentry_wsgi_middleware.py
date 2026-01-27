@@ -39,6 +39,8 @@ denylist = (
         'secret',
         'passwd',
         'credentials',
+        'x_auth_token',
+        'x_subject_token',
     ]
 )
 
