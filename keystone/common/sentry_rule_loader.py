@@ -50,7 +50,7 @@ def load_rules_from_file(config_file: str) -> List[Dict[str, Any]]:
         return []
 
     try:
-        with open(config_file, 'r') as f:
+        with open(config_file) as f:
             config_data = yaml.safe_load(f)
     except yaml.YAMLError as e:
         raise yaml.YAMLError(
@@ -77,8 +77,7 @@ def load_rules_from_file(config_file: str) -> List[Dict[str, Any]]:
             raise RuleValidationError(f"Rule {i} validation failed: {e}")
 
     LOG.info(
-        "Successfully loaded %d Sentry filter rules",
-        len(validated_rules),
+        "Successfully loaded %d Sentry filter rules", len(validated_rules)
     )
     return validated_rules
 
@@ -110,9 +109,8 @@ def _validate_rule(rule: Dict[str, Any], rule_index: int) -> Dict[str, Any]:
 
     # At least one filtering condition must be specified
     has_condition = any(
-        field in rule for field in [
-            'exception_type', 'message_pattern', 'message_contains'
-        ]
+        field in rule
+        for field in ['exception_type', 'message_pattern', 'message_contains']
     )
 
     if not has_condition:
@@ -195,26 +193,20 @@ def create_example_config_file(output_file: str) -> None:
     """
     example_config = {
         'rules': [
-            {
-                'name': 'exclude_unauthorized',
-                'exception_type': 'Unauthorized'
-            },
+            {'name': 'exclude_unauthorized', 'exception_type': 'Unauthorized'},
             {
                 'name': 'exclude_ldap_credentials',
-                'exception_type': 'LDAPInvalidCredentialsError'
+                'exception_type': 'LDAPInvalidCredentialsError',
             },
             {
                 'name': 'rate_limit_ldap_connection',
                 'exception_type': 'LDAPServerConnectionError',
-                "rate_limit": {
-                    "max_occurrences": 5,
-                    "time_window": 300
-                }
+                "rate_limit": {"max_occurrences": 5, "time_window": 300},
             },
             {
                 'name': 'filter_timeout_messages',
                 'message_contains': 'timeout',
-                'sample_rate': 0.5
+                'sample_rate': 0.5,
             },
             {
                 'name': 'filter_connection_refused',
@@ -224,11 +216,8 @@ def create_example_config_file(output_file: str) -> None:
                 'name': 'complex_database_rule',
                 'exception_type': 'DatabaseError',
                 'message_contains': 'deadlock',
-                'rate_limit': {
-                    'max_occurrences': 3,
-                    'time_window': 180
-                }
-            }
+                'rate_limit': {'max_occurrences': 3, 'time_window': 180},
+            },
         ]
     }
 

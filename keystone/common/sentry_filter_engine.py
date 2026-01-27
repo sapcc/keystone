@@ -27,9 +27,7 @@ class SentryFilterEngine:
     """Engine for filtering Sentry events based on configurable rules."""
 
     def __init__(
-        self,
-        rules: List[Dict[str, Any]],
-        debug_logging: bool = False,
+        self, rules: List[Dict[str, Any]], debug_logging: bool = False
     ):
         """Initialize the filter engine with rules.
 
@@ -40,8 +38,8 @@ class SentryFilterEngine:
         """
         self.rules = rules
         self.debug_logging = debug_logging
-        self._rate_limit_tracker = defaultdict(deque)
-        self._compiled_regexes = {}
+        self._rate_limit_tracker: Dict[str, deque] = defaultdict(deque)
+        self._compiled_regexes: Dict[str, re.Pattern] = {}
 
         LOG.info("Initialized Sentry filter engine with %d rules", len(rules))
         self.debug_log("Debug logging enabled for Sentry filtering")
@@ -71,9 +69,7 @@ class SentryFilterEngine:
         return False
 
     def _rule_matches(
-        self,
-        rule: Dict[str, Any],
-        hint: Dict[str, Any],
+        self, rule: Dict[str, Any], hint: Dict[str, Any]
     ) -> bool:
         """Check if all conditions in a rule match the event.
 
@@ -87,8 +83,7 @@ class SentryFilterEngine:
             ok = self._match_exception_type(rule['exception_type'], hint)
             if ok:
                 self.debug_log(
-                    "Rule '%s': exception_type condition matched",
-                    rule_name,
+                    "Rule '%s': exception_type condition matched", rule_name
                 )
             else:
                 self.debug_log(
@@ -102,8 +97,7 @@ class SentryFilterEngine:
             ok = self._match_message_pattern(rule['message_pattern'], hint)
             if ok:
                 self.debug_log(
-                    "Rule '%s': message_pattern condition matched",
-                    rule_name,
+                    "Rule '%s': message_pattern condition matched", rule_name
                 )
             else:
                 self.debug_log(
@@ -117,8 +111,7 @@ class SentryFilterEngine:
             ok = self._match_message_contains(rule['message_contains'], hint)
             if ok:
                 self.debug_log(
-                    "Rule '%s': message_contains condition matched",
-                    rule_name,
+                    "Rule '%s': message_contains condition matched", rule_name
                 )
             else:
                 self.debug_log(
@@ -132,13 +125,11 @@ class SentryFilterEngine:
             ok = self._check_rate_limit(rule)
             if ok:
                 self.debug_log(
-                    "Rule '%s': rate_limit condition matched",
-                    rule_name,
+                    "Rule '%s': rate_limit condition matched", rule_name
                 )
             else:
                 self.debug_log(
-                    "Rule '%s': rate_limit condition did not match",
-                    rule_name,
+                    "Rule '%s': rate_limit condition did not match", rule_name
                 )
                 return False
 
@@ -167,9 +158,7 @@ class SentryFilterEngine:
         return True
 
     def _match_exception_type(
-        self,
-        rule_type: str,
-        hint: Dict[str, Any],
+        self, rule_type: str, hint: Dict[str, Any]
     ) -> bool:
         """Check if event exception type matches rule.
 
@@ -192,9 +181,7 @@ class SentryFilterEngine:
         return type_name == rule_type
 
     def _match_message_pattern(
-        self,
-        pattern: str,
-        hint: Dict[str, Any],
+        self, pattern: str, hint: Dict[str, Any]
     ) -> bool:
         """Check if event exception message matches regex pattern.
 
@@ -224,9 +211,7 @@ class SentryFilterEngine:
         return bool(regex.search(message))
 
     def _match_message_contains(
-        self,
-        search_string: str,
-        hint: Dict[str, Any],
+        self, search_string: str, hint: Dict[str, Any]
     ) -> bool:
         """Check if event exception message contains string.
 
@@ -249,10 +234,7 @@ class SentryFilterEngine:
 
         return search_string in message
 
-    def _check_rate_limit(
-        self,
-        rule: Dict[str, Any]
-    ) -> bool:
+    def _check_rate_limit(self, rule: Dict[str, Any]) -> bool:
         """Check if rule should apply based on rate limiting.
 
         Args:
@@ -290,7 +272,9 @@ class SentryFilterEngine:
             if self.debug_logging:
                 LOG.debug(
                     "Rule '%s': rate limit reached (%d >= %d)",
-                    rule_name, current_count, max_occurrences
+                    rule_name,
+                    current_count,
+                    max_occurrences,
                 )
             return True  # Rule applies - filter this event
 

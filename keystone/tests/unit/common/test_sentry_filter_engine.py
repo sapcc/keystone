@@ -21,10 +21,11 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        super(SentryFilterEngineTestCase, self).setUp()
+        super().setUp()
 
     def _create_hint_with_exception(self, exception_type_name, message):
         """Create a hint structure with a mock exception for testing."""
+
         # Create a custom exception class with the desired name
         class CustomException(Exception):
             pass
@@ -32,9 +33,7 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         CustomException.__name__ = exception_type_name
         mock_exception = CustomException(message)
 
-        return {
-            'exc_info': (CustomException, mock_exception, None)
-        }
+        return {'exc_info': (CustomException, mock_exception, None)}
 
     def test_no_rules_allows_all_events(self):
         """Test that engine with no rules allows all events."""
@@ -102,11 +101,13 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
 
     def test_rate_limiting_basic_functionality(self):
         """Test basic rate limiting functionality."""
-        rules = [{
-            'name': 'rate_limited_rule',
-            'exception_type': 'TestError',
-            'rate_limit': {'max_occurrences': 2, 'time_window': 60}
-        }]
+        rules = [
+            {
+                'name': 'rate_limited_rule',
+                'exception_type': 'TestError',
+                'rate_limit': {'max_occurrences': 2, 'time_window': 60},
+            }
+        ]
         engine = SentryFilterEngine(rules)
         hint = self._create_hint_with_exception('TestError', 'test')
 
@@ -125,11 +126,13 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
     @mock.patch('time.time')
     def test_rate_limiting_time_window(self, mock_time):
         """Test that rate limiting respects time windows."""
-        rules = [{
-            'name': 'rate_limited_rule',
-            'exception_type': 'TestError',
-            'rate_limit': {'max_occurrences': 1, 'time_window': 10}
-        }]
+        rules = [
+            {
+                'name': 'rate_limited_rule',
+                'exception_type': 'TestError',
+                'rate_limit': {'max_occurrences': 1, 'time_window': 10},
+            }
+        ]
         engine = SentryFilterEngine(rules)
         hint = self._create_hint_with_exception('TestError', 'test')
 
@@ -150,17 +153,21 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
 
     def test_sampling_mechanism(self):
         """Test that sampling mechanism works as expected."""
-        rules = [{
-            'name': 'sampled_rule',
-            'exception_type': 'TestError',
-            'sample_rate': 0.5
-        }]
+        rules = [
+            {
+                'name': 'sampled_rule',
+                'exception_type': 'TestError',
+                'sample_rate': 0.5,
+            }
+        ]
         engine = SentryFilterEngine(rules)
         hint = self._create_hint_with_exception('TestError', 'test')
 
         # Patch random.random to control sampling outcome
-        with mock.patch('keystone.common.sentry_filter_'
-                        'engine.secrets.SystemRandom.random') as mock_random:
+        with mock.patch(
+            'keystone.common.sentry_filter_'
+            'engine.secrets.SystemRandom.random'
+        ) as mock_random:
             # Simulate random value below sample rate (should filter)
             mock_random.return_value = 0.4
             result = engine.should_filter_event(hint)
@@ -173,11 +180,13 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
 
     def test_multiple_conditions_must_all_match(self):
         """Test that rules with multiple conditions require all to match."""
-        rules = [{
-            'name': 'multi_condition_rule',
-            'exception_type': 'TestError',
-            'message_contains': 'timeout'
-        }]
+        rules = [
+            {
+                'name': 'multi_condition_rule',
+                'exception_type': 'TestError',
+                'message_contains': 'timeout',
+            }
+        ]
         engine = SentryFilterEngine(rules)
 
         # Hint matching both conditions should be filtered

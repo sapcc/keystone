@@ -1609,49 +1609,55 @@ class SentryTest(BaseApp):
         import sentry_sdk
 
         sentry_dsn = os.environ.get("SENTRY_DSN")
-        
+
         if not sentry_dsn:
             print("ERROR: SENTRY_DSN environment variable is not set.")
             sys.exit(1)
-        
+
         print(f"Sentry DSN configured: {sentry_dsn[:30]}...")
-        
+
         try:
-            sentry_sdk.init(
-                dsn=sentry_dsn,
-                send_default_pii=False,
-            )
+            sentry_sdk.init(dsn=sentry_dsn, send_default_pii=False)
             print("Sentry SDK initialized successfully.")
         except Exception as e:
             print(f"ERROR: Failed to initialize Sentry SDK: {e}")
             sys.exit(1)
-        
+
         print("Sending test exception to Sentry...")
-        
+
         try:
             with sentry_sdk.configure_scope() as scope:
                 scope.set_tag("test", "true")
                 scope.set_tag("source", "keystone-manage")
                 scope.set_tag("command", "sentry-test")
-                scope.set_context("test_info", {
-                    "description": "Test exception from keystone-manage",
-                    "purpose": "Verify Sentry integration"
-                })
-            
+                scope.set_context(
+                    "test_info",
+                    {
+                        "description": "Test exception from keystone-manage",
+                        "purpose": "Verify Sentry integration",
+                    },
+                )
+
             try:
-                raise Exception("Keystone Sentry Test Exception - This is a test to verify Sentry integration is working correctly")
+                raise Exception(
+                    "Keystone Sentry Test Exception - This is a test to verify Sentry integration is working correctly"
+                )
             except Exception as e:
                 event_id = sentry_sdk.capture_exception(e)
-                
+
                 # Flush to ensure the event is sent
                 sentry_sdk.flush(timeout=5)
-                
+
                 print("[+] Test exception sent successfully!")
                 if event_id:
                     print(f"Event ID: {event_id}")
-                print("\nCheck your Sentry dashboard to verify the event was received.")
-                print("Look for tags: test=true, source=keystone-manage, command=sentry-test")
-                
+                print(
+                    "\nCheck your Sentry dashboard to verify the event was received."
+                )
+                print(
+                    "Look for tags: test=true, source=keystone-manage, command=sentry-test"
+                )
+
         except Exception as e:
             print(f"ERROR: Failed to send test exception: {e}")
             sys.exit(1)

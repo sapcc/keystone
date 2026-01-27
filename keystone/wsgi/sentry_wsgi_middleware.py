@@ -29,20 +29,17 @@ from keystone.server.wsgi import initialize_public_application
 logger = logging.getLogger(__name__)
 
 filter_engine = None
-denylist = (
-    DEFAULT_DENYLIST
-    + [
-        'old_password',
-        'new_password',
-        'password',
-        'cred',
-        'secret',
-        'passwd',
-        'credentials',
-        'x_auth_token',
-        'x_subject_token',
-    ]
-)
+denylist = DEFAULT_DENYLIST + [
+    'old_password',
+    'new_password',
+    'password',
+    'cred',
+    'secret',
+    'passwd',
+    'credentials',
+    'x_auth_token',
+    'x_subject_token',
+]
 
 # Environment variable configuration
 # SENTRY_FILTER_CONFIG_FILE: Path to YAML file with filtering rules
@@ -90,14 +87,10 @@ def _initialize_sentry_filtering():
 
     except RuleValidationError as e:
         logger.error("Failed to load Sentry filter config: %s", e)
-        logger.warning(
-            "Sentry filtering disabled due to configuration error"
-        )
+        logger.warning("Sentry filtering disabled due to configuration error")
     except Exception as e:
         logger.error("Unexpected error loading Sentry filter config: %s", e)
-        logger.warning(
-            "Sentry filtering disabled due to unexpected error"
-        )
+        logger.warning("Sentry filtering disabled due to unexpected error")
 
 
 def before_send(event, hint):
@@ -111,9 +104,7 @@ def _initialize_sentry_sdk():
     """Initialize Sentry SDK with config from environment variables."""
     sentry_dsn = os.environ.get("SENTRY_DSN")
     if not sentry_dsn:
-        logger.warning(
-            "SENTRY_DSN not found in environment, Sentry disabled"
-        )
+        logger.warning("SENTRY_DSN not found in environment, Sentry disabled")
         return
     if sentry_dsn.startswith("requests+"):
         sentry_dsn = sentry_dsn[len("requests+") :]
@@ -128,9 +119,8 @@ def _initialize_sentry_sdk():
             before_send=before_send,
             integrations=[
                 LoggingIntegration(
-                    level=logging.INFO,
-                    event_level=logging.ERROR,
-                ),
+                    level=logging.INFO, event_level=logging.ERROR
+                )
             ],
             debug=False,
         )

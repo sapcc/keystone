@@ -34,7 +34,7 @@ rules:
     exception_type: "DatabaseError"
     message_contains: "connection"
     sample_rate: 0.1 # 10% sampling
-    
+
 
   # Message-based filtering
   - name: "filter_timeout_messages"
