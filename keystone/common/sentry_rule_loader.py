@@ -64,17 +64,25 @@ def load_rules_from_file(config_file: str) -> List[Dict[str, Any]]:
         raise RuleValidationError("Config file must contain a 'rules' section")
 
     rules = config_data['rules']
-    if not isinstance(rules, list):
-        raise RuleValidationError("'rules' section must be a list")
+    if not isinstance(rules, dict):
+        raise RuleValidationError("'rules' section must be a dictionary")
 
     validated_rules = []
-    for i, rule in enumerate(rules):
+    for rule_name, rule_config in rules.items():
         try:
-            validated_rule = _validate_rule(rule, i)
+            if not isinstance(rule_config, dict):
+                raise RuleValidationError(
+                    f"Rule '{rule_name}' configuration must be a dictionary, got {type(rule_config).__name__}"
+                )
+            # Inject the rule name into the config
+            rule_with_name = {'name': rule_name, **rule_config}
+            validated_rule = _validate_rule(rule_with_name, rule_name)
             validated_rules.append(validated_rule)
         except RuleValidationError as e:
-            LOG.error("Rule validation failed for rule %d: %s", i, e)
-            raise RuleValidationError(f"Rule {i} validation failed: {e}")
+            LOG.error("Rule validation failed for rule '%s': %s", rule_name, e)
+            raise RuleValidationError(
+                f"Rule '{rule_name}' validation failed: {e}"
+            )
 
     LOG.info(
         "Successfully loaded %d Sentry filter rules", len(validated_rules)
@@ -82,12 +90,12 @@ def load_rules_from_file(config_file: str) -> List[Dict[str, Any]]:
     return validated_rules
 
 
-def _validate_rule(rule: Dict[str, Any], rule_index: int) -> Dict[str, Any]:
+def _validate_rule(rule: Dict[str, Any], rule_name: str) -> Dict[str, Any]:
     """Validate a single filtering rule.
 
     Args:
         rule: Rule dictionary to validate
-        rule_index: Index of rule for error reporting
+        rule_name: Name of rule for error reporting
 
     Returns:
         Validated rule dictionary
@@ -192,33 +200,28 @@ def create_example_config_file(output_file: str) -> None:
         output_file: Path where to write the example config
     """
     example_config = {
-        'rules': [
-            {'name': 'exclude_unauthorized', 'exception_type': 'Unauthorized'},
-            {
-                'name': 'exclude_ldap_credentials',
-                'exception_type': 'LDAPInvalidCredentialsError',
+        'rules': {
+            'exclude_unauthorized': {'exception_type': 'Unauthorized'},
+            'exclude_ldap_credentials': {
+                'exception_type': 'LDAPInvalidCredentialsError'
             },
-            {
-                'name': 'rate_limit_ldap_connection',
+            'rate_limit_ldap_connection': {
                 'exception_type': 'LDAPServerConnectionError',
-                "rate_limit": {"max_occurrences": 5, "time_window": 300},
+                'rate_limit': {'max_occurrences': 5, 'time_window': 300},
             },
-            {
-                'name': 'filter_timeout_messages',
+            'filter_timeout_messages': {
                 'message_contains': 'timeout',
                 'sample_rate': 0.5,
             },
-            {
-                'name': 'filter_connection_refused',
-                'message_pattern': r'Connection.*refused.*port\s+\d+',
+            'filter_connection_refused': {
+                'message_pattern': r'Connection.*refused.*port\s+\d+'
             },
-            {
-                'name': 'complex_database_rule',
+            'complex_database_rule': {
                 'exception_type': 'DatabaseError',
                 'message_contains': 'deadlock',
                 'rate_limit': {'max_occurrences': 3, 'time_window': 180},
             },
-        ]
+        }
     }
 
     with open(output_file, 'w') as f:

@@ -46,9 +46,7 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
 
     def test_load_valid_config(self):
         """Test that valid configuration can be loaded without errors."""
-        config_data = {
-            'rules': [{'name': 'test_rule', 'exception_type': 'TestError'}]
-        }
+        config_data = {'rules': {'test_rule': {'exception_type': 'TestError'}}}
         config_file = self._create_temp_config(config_data)
 
         # Should not raise any exceptions
@@ -56,9 +54,9 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
         self.assertEqual(len(rules), 1)
         self.assertEqual(rules[0]['name'], 'test_rule')
 
-    def test_empty_rules_list(self):
-        """Test configuration with empty rules list."""
-        config_data = {'rules': []}
+    def test_empty_rules_dict(self):
+        """Test configuration with empty rules dictionary."""
+        config_data = {'rules': {}}
         config_file = self._create_temp_config(config_data)
 
         rules = load_rules_from_file(config_file)
@@ -91,46 +89,8 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
         self.assertRaises(yaml.YAMLError, load_rules_from_file, temp_file.name)
 
     def test_rule_not_dictionary(self):
-        """Test validation fails when rule is not a dictionary."""
-        config_data = {'rules': ["not_a_dict"]}
-        config_file = self._create_temp_config(config_data)
-
-        self.assertRaises(
-            RuleValidationError, load_rules_from_file, config_file
-        )
-
-    def test_rule_missing_name(self):
-        """Test validation fails when rule has no 'name' field."""
-        config_data = {'rules': [{'exception_type': 'TestError'}]}
-        config_file = self._create_temp_config(config_data)
-
-        self.assertRaises(
-            RuleValidationError, load_rules_from_file, config_file
-        )
-
-    def test_rule_name_not_string(self):
-        """Test validation fails when rule name is not a string."""
-        config_data = {'rules': [{'name': 123, 'exception_type': 'TestError'}]}
-        config_file = self._create_temp_config(config_data)
-
-        self.assertRaises(
-            RuleValidationError, load_rules_from_file, config_file
-        )
-
-    def test_rule_name_empty_string(self):
-        """Test validation fails when rule name is empty."""
-        config_data = {'rules': [{'name': '', 'exception_type': 'TestError'}]}
-        config_file = self._create_temp_config(config_data)
-
-        self.assertRaises(
-            RuleValidationError, load_rules_from_file, config_file
-        )
-
-    def test_rule_name_whitespace_only(self):
-        """Test validation fails when rule name is only whitespace."""
-        config_data = {
-            'rules': [{'name': '   ', 'exception_type': 'TestError'}]
-        }
+        """Test validation fails when rule config is not a dictionary."""
+        config_data = {'rules': {'test_rule': 'not_a_dict'}}
         config_file = self._create_temp_config(config_data)
 
         self.assertRaises(
@@ -139,7 +99,7 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
 
     def test_rule_no_conditions(self):
         """Test validation fails when rule has no filtering conditions."""
-        config_data = {'rules': [{'name': 'test_rule'}]}
+        config_data = {'rules': {'test_rule': {}}}
         config_file = self._create_temp_config(config_data)
 
         self.assertRaises(
@@ -148,7 +108,7 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
 
     def test_exception_type_not_string(self):
         """Test validation fails when exception_type is not a string."""
-        config_data = {'rules': [{'name': 'test_rule', 'exception_type': 123}]}
+        config_data = {'rules': {'test_rule': {'exception_type': 123}}}
         config_file = self._create_temp_config(config_data)
 
         self.assertRaises(
@@ -157,9 +117,7 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
 
     def test_message_pattern_not_string(self):
         """Test validation fails when message_pattern is not a string."""
-        config_data = {
-            'rules': [{'name': 'test_rule', 'message_pattern': 123}]
-        }
+        config_data = {'rules': {'test_rule': {'message_pattern': 123}}}
         config_file = self._create_temp_config(config_data)
 
         self.assertRaises(
@@ -169,7 +127,7 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_message_pattern_invalid_regex(self):
         """Test validation fails when message_pattern is invalid regex."""
         config_data = {
-            'rules': [{'name': 'test_rule', 'message_pattern': '[unclosed'}]
+            'rules': {'test_rule': {'message_pattern': '[unclosed'}}
         }
         config_file = self._create_temp_config(config_data)
 
@@ -179,9 +137,7 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
 
     def test_message_contains_not_string(self):
         """Test validation fails when message_contains is not a string."""
-        config_data = {
-            'rules': [{'name': 'test_rule', 'message_contains': 123}]
-        }
+        config_data = {'rules': {'test_rule': {'message_contains': 123}}}
         config_file = self._create_temp_config(config_data)
 
         self.assertRaises(
@@ -191,13 +147,12 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_rate_limit_not_dictionary(self):
         """Test validation fails when rate_limit is not a dictionary."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'rate_limit': 'not_dict',
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -208,13 +163,12 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_rate_limit_missing_max_occurrences(self):
         """Test validation fails when rate_limit missing max_occurrences."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'rate_limit': {'time_window': 300},
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -225,13 +179,12 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_rate_limit_missing_time_window(self):
         """Test validation fails when rate_limit missing time_window."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'rate_limit': {'max_occurrences': 5},
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -242,16 +195,15 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_rate_limit_max_occurrences_not_int(self):
         """Test validation fails when max_occurrences is not an integer."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'rate_limit': {
                         'max_occurrences': 'five',
                         'time_window': 300,
                     },
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -262,13 +214,12 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_rate_limit_max_occurrences_zero(self):
         """Test validation fails when max_occurrences is zero."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'rate_limit': {'max_occurrences': 0, 'time_window': 300},
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -279,13 +230,12 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_rate_limit_max_occurrences_negative(self):
         """Test validation fails when max_occurrences is negative."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'rate_limit': {'max_occurrences': -1, 'time_window': 300},
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -296,16 +246,15 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_rate_limit_time_window_not_number(self):
         """Test validation fails when time_window is not a number."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'rate_limit': {
                         'max_occurrences': 5,
                         'time_window': 'five_minutes',
                     },
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -316,13 +265,12 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_rate_limit_time_window_zero(self):
         """Test validation fails when time_window is zero."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'rate_limit': {'max_occurrences': 5, 'time_window': 0},
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -333,13 +281,12 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_rate_limit_time_window_negative(self):
         """Test validation fails when time_window is negative."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'rate_limit': {'max_occurrences': 5, 'time_window': -300},
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -350,13 +297,12 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_rate_limit_time_window_float(self):
         """Test validation succeeds when time_window is a float."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'rate_limit': {'max_occurrences': 5, 'time_window': 300.5},
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -367,13 +313,12 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_sample_rate_not_number(self):
         """Test validation fails when sample_rate is not a number."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
+            'rules': {
+                'test_rule': {
                     'exception_type': 'TestError',
                     'sample_rate': 'high',
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -385,13 +330,12 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
         """Test validation fails when sample_rate is out of (0,1] range."""
         for invalid_rate in [-0.1, 1.5, 2]:
             config_data = {
-                'rules': [
-                    {
-                        'name': 'test_rule',
+                'rules': {
+                    'test_rule': {
                         'exception_type': 'TestError',
                         'sample_rate': invalid_rate,
                     }
-                ]
+                }
             }
             config_file = self._create_temp_config(config_data)
 
@@ -402,12 +346,11 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_valid_message_pattern(self):
         """Test validation succeeds with valid regex pattern."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'test_rule',
-                    'message_pattern': 'Connection.*refused.*port\s+\d+',  # noqa: W605,E501
+            'rules': {
+                'test_rule': {
+                    'message_pattern': 'Connection.*refused.*port\s+\d+'  # noqa: W605,E501
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -417,9 +360,7 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
 
     def test_valid_message_contains(self):
         """Test validation succeeds with message_contains."""
-        config_data = {
-            'rules': [{'name': 'test_rule', 'message_contains': 'timeout'}]
-        }
+        config_data = {'rules': {'test_rule': {'message_contains': 'timeout'}}}
         config_file = self._create_temp_config(config_data)
 
         # Should not raise any exceptions
@@ -429,14 +370,13 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
     def test_complex_valid_rule(self):
         """Test succeeds with complex rule having multiple conditions."""
         config_data = {
-            'rules': [
-                {
-                    'name': 'complex_rule',
+            'rules': {
+                'complex_rule': {
                     'exception_type': 'DatabaseError',
                     'message_contains': 'deadlock',
                     'rate_limit': {'max_occurrences': 3, 'time_window': 180},
                 }
-            ]
+            }
         }
         config_file = self._create_temp_config(config_data)
 
@@ -458,9 +398,9 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
             RuleValidationError, load_rules_from_file, temp_file.name
         )
 
-    def test_rules_not_list(self):
-        """Test validation fails when 'rules' is not a list."""
-        config_data = {'rules': 'not_a_list'}
+    def test_rules_not_dict(self):
+        """Test validation fails when 'rules' is not a dictionary."""
+        config_data = {'rules': 'not_a_dict'}
         config_file = self._create_temp_config(config_data)
 
         self.assertRaises(
