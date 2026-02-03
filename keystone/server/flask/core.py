@@ -25,15 +25,12 @@ except ImportError:
 
 from keystone.common import profiler
 import keystone.conf
-from keystone import exception
 import keystone.server
 from keystone.server.flask import application
 from keystone.server.flask.request_processing.middleware import auth_context
 from keystone.server.flask.request_processing.middleware import url_normalize
 
 # CCloud
-import logging
-from raven.contrib.flask import Sentry
 
 # NOTE(morgan): Middleware Named Tuple with the following values:
 #   * "namespace": namespace for the entry_point
@@ -190,35 +187,6 @@ def setup_app_middleware(app):
 
     # Apply werkzeug specific middleware
     app.wsgi_app = proxy_fix.ProxyFix(app.wsgi_app)
-
-    # CCloud
-    if os.environ.get('SENTRY_DSN', None):
-        processors = (
-            'raven.processors.SanitizePasswordsProcessor',
-            'raven.processors.SanitizeKeysProcessor',
-            'raven.processors.RemovePostDataProcessor',
-        )
-        sanitize_keys = [
-            'old_password',
-            'new_password',
-            'password',
-            'cred',
-            'secret',
-            'passwd',
-            'credentials',
-        ]
-        app.config['SENTRY_CONFIG'] = {
-            'ignore_exceptions': [
-                exception.NotFound,
-                exception.Unauthorized,
-                'INVALID_CREDENTIALS',
-            ],
-            'processors': processors,
-            'sanitize_keys': sanitize_keys,
-        }
-
-        sentry = Sentry()
-        sentry.init_app(app, logging=True, level=logging.ERROR)
 
     return app
 

@@ -1,0 +1,87 @@
+# Example Sentry Filtering Rules Configuration
+# This file demonstrates various filtering rules for Keystone Sentry integration
+#
+# Rule Types:
+# - exception_type: Filter by exception class name
+# - message_pattern: Filter by regex pattern in exception message
+# - message_contains: Filter by simple string in exception message
+# - rate_limit: Limit occurrences of specific exceptions over a time window
+# - sample_rate: Percentage of events to sample (0.0 to 1.0)
+#
+#  within rate_limit:
+# - max_occurrences: Maximum number of times the exception can be sent to Sentry within the time window
+# - time_window: Time frame in seconds during which max_occurrences is counted
+# Example: A rate_limit of max_occurrences: 5 and time_window: 300 means that only 5 occurrences of the exception will be sent to Sentry every 5 minutes.
+#
+# Environment variable to set path: SENTRY_FILTER_CONFIG=/path/to/this/file.yaml
+
+rules:
+  # Simple exclusion rules - always filter these exceptions
+  exclude_unauthorized_errors:
+    exception_type: "Unauthorized"
+
+  exclude_token_not_found:
+    exception_type: "TokenNotFound"
+
+  # Rate limited rules - allow some occurrences, then filter
+  rate_limit_ldap_connection_errors:
+    exception_type: "LDAPServerConnectionError"
+    rate_limit:
+      max_occurrences: 5
+      time_window: 300  # 5 minutes
+
+  rate_limit_database_connection_errors:
+    exception_type: "DatabaseError"
+    message_contains: "connection"
+    sample_rate: 0.1  # 10% sampling
+
+  # Message-based filtering
+  filter_timeout_messages:
+    message_contains: "timeout"
+
+  filter_connection_refused_errors:
+    message_pattern: "Connection.*refused.*port\\s+\\d+"
+
+  filter_ssl_certificate_errors:
+    message_pattern: "(?i)ssl.*certificate.*(?:expired|invalid|verify failed)"
+
+  # Complex rules combining multiple conditions
+  complex_database_deadlock_rule:
+    exception_type: "DatabaseError"
+    message_contains: "deadlock"
+    rate_limit:
+      max_occurrences: 3
+      time_window: 180  # 3 minutes
+
+  rate_limit_validation_errors:
+    exception_type: "ValidationError"
+    message_pattern: ".*length.*exceeded.*"
+    rate_limit:
+      max_occurrences: 20
+      time_window: 300  # 5 minutes
+
+  # Health check and monitoring related
+  filter_health_check_errors:
+    message_contains: "/health"
+
+  filter_metrics_endpoint_errors:
+    message_pattern: ".*/metrics.*"
+
+  # Development and testing related (might want to disable in production)
+  filter_test_related_errors:
+    message_contains: "test_"
+    rate_limit:
+      max_occurrences: 1
+      time_window: 3600  # 1 hour - only log once per hour in case tests run in prod
+
+# Configuration guidelines:
+#
+# 1. Rule names should be descriptive and unique
+# 2. Use rate limiting for intermittent issues you want to be aware of but not spammed by
+# 3. Use simple exclusion for known issues that are handled elsewhere or not actionable
+# 4. Use message_pattern for complex regex matching, message_contains for simple string matching
+# 5. Combine multiple conditions (exception_type + message_contains) for precise filtering
+# 6. Test regex patterns before deployment - invalid regex will prevent rule loading
+# 7. Consider different time_window values based on issue frequency:
+#    - Short windows (60-300s) for high-frequency issues
+#    - Long windows (600-3600s) for occasional issues you want to limit

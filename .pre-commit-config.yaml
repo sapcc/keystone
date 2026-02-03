@@ -48,6 +48,7 @@ repos:
           - types-decorator
           - types-requests
           - types-setuptools
+          - types-PyYAML
         exclude: |
           (?x)(
             api-ref/.*
