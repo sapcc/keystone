@@ -37,8 +37,7 @@ denylist = DEFAULT_DENYLIST + [
     'secret',
     'passwd',
     'credentials',
-    'x_auth_token',
-    'x_subject_token',
+    'x-subject-token',
 ]
 
 # Environment variable configuration
