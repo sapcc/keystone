@@ -406,3 +406,47 @@ class SentryRuleLoaderTestCase(unit.BaseTestCase):
         self.assertRaises(
             RuleValidationError, load_rules_from_file, config_file
         )
+
+    def test_exception_type_prefix_valid(self):
+        """Test validation succeeds with exception_type_prefix."""
+        config_data = {
+            'rules': {'test_rule': {'exception_type_prefix': 'LDAP'}}
+        }
+        config_file = self._create_temp_config(config_data)
+
+        # Should not raise any exceptions
+        rules = load_rules_from_file(config_file)
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0]['name'], 'test_rule')
+        self.assertEqual(rules[0]['exception_type_prefix'], 'LDAP')
+
+    def test_exception_type_prefix_not_string(self):
+        """Test validation fails when exception_type_prefix is not a string."""
+        config_data = {'rules': {'test_rule': {'exception_type_prefix': 123}}}
+        config_file = self._create_temp_config(config_data)
+
+        self.assertRaises(
+            RuleValidationError, load_rules_from_file, config_file
+        )
+
+    def test_exception_type_suffix_valid(self):
+        """Test validation succeeds with exception_type_suffix."""
+        config_data = {
+            'rules': {'test_rule': {'exception_type_suffix': 'Error'}}
+        }
+        config_file = self._create_temp_config(config_data)
+
+        # Should not raise any exceptions
+        rules = load_rules_from_file(config_file)
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0]['name'], 'test_rule')
+        self.assertEqual(rules[0]['exception_type_suffix'], 'Error')
+
+    def test_exception_type_suffix_not_string(self):
+        """Test validation fails when exception_type_suffix is not a string."""
+        config_data = {'rules': {'test_rule': {'exception_type_suffix': 123}}}
+        config_file = self._create_temp_config(config_data)
+
+        self.assertRaises(
+            RuleValidationError, load_rules_from_file, config_file
+        )
