@@ -2,7 +2,9 @@
 # This file demonstrates various filtering rules for Keystone Sentry integration
 #
 # Rule Types:
-# - exception_type: Filter by exception class name
+# - exception_type: Filter by exact exception class name
+# - exception_type_prefix: Filter by exception class name prefix (e.g., "LDAP" matches LDAPError, LDAPConnectionError, etc.)
+# - exception_type_suffix: Filter by exception class name suffix (e.g., "Error" matches ValueError, TypeError, etc.)
 # - message_pattern: Filter by regex pattern in exception message
 # - message_contains: Filter by simple string in exception message
 # - rate_limit: Limit occurrences of specific exceptions over a time window
@@ -73,6 +75,25 @@ rules:
     rate_limit:
       max_occurrences: 1
       time_window: 3600  # 1 hour - only log once per hour in case tests run in prod
+
+  # Prefix-based filtering - filter all LDAP-related exceptions
+  filter_all_ldap_errors:
+    exception_type_prefix: "LDAP"
+    rate_limit:
+      max_occurrences: 10
+      time_window: 300  # 5 minutes
+
+  # Suffix-based filtering - filter all exceptions ending with "NotFound"
+  filter_all_not_found_errors:
+    exception_type_suffix: "NotFound"
+
+  # Suffix-based filtering with rate limiting - filter common error types
+  rate_limit_generic_errors:
+    exception_type_suffix: "Error"
+    message_contains: "temporary"
+    rate_limit:
+      max_occurrences: 5
+      time_window: 600  # 10 minutes
 
 # Configuration guidelines:
 #
