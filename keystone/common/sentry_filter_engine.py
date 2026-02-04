@@ -92,6 +92,40 @@ class SentryFilterEngine:
                 )
                 return False
 
+        # exception_type_prefix
+        if 'exception_type_prefix' in rule:
+            ok = self._match_exception_type_prefix(
+                rule['exception_type_prefix'], hint
+            )
+            if ok:
+                self.debug_log(
+                    "Rule '%s': exception_type_prefix condition matched",
+                    rule_name,
+                )
+            else:
+                self.debug_log(
+                    "Rule '%s': exception_type_prefix condition did not match",
+                    rule_name,
+                )
+                return False
+
+        # exception_type_suffix
+        if 'exception_type_suffix' in rule:
+            ok = self._match_exception_type_suffix(
+                rule['exception_type_suffix'], hint
+            )
+            if ok:
+                self.debug_log(
+                    "Rule '%s': exception_type_suffix condition matched",
+                    rule_name,
+                )
+            else:
+                self.debug_log(
+                    "Rule '%s': exception_type_suffix condition did not match",
+                    rule_name,
+                )
+                return False
+
         # message_pattern
         if 'message_pattern' in rule:
             ok = self._match_message_pattern(rule['message_pattern'], hint)
@@ -179,6 +213,52 @@ class SentryFilterEngine:
 
         type_name = type(exception_instance).__name__
         return type_name == rule_type
+
+    def _match_exception_type_prefix(
+        self, prefix: str, hint: Dict[str, Any]
+    ) -> bool:
+        """Check if event exception type starts with prefix.
+
+        Args:
+            prefix: Prefix string to match
+            hint: Sentry event hint dictionary
+
+        Returns:
+            True if exception type starts with prefix
+        """
+        if 'exc_info' not in hint:
+            return False
+
+        exception_instance = hint['exc_info'][1]
+
+        if exception_instance is None:
+            return False
+
+        type_name = type(exception_instance).__name__
+        return type_name.startswith(prefix)
+
+    def _match_exception_type_suffix(
+        self, suffix: str, hint: Dict[str, Any]
+    ) -> bool:
+        """Check if event exception type ends with suffix.
+
+        Args:
+            suffix: Suffix string to match
+            hint: Sentry event hint dictionary
+
+        Returns:
+            True if exception type ends with suffix
+        """
+        if 'exc_info' not in hint:
+            return False
+
+        exception_instance = hint['exc_info'][1]
+
+        if exception_instance is None:
+            return False
+
+        type_name = type(exception_instance).__name__
+        return type_name.endswith(suffix)
 
     def _match_message_pattern(
         self, pattern: str, hint: Dict[str, Any]
