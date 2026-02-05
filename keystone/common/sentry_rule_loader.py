@@ -118,19 +118,40 @@ def _validate_rule(rule: Dict[str, Any], rule_name: str) -> Dict[str, Any]:
     # At least one filtering condition must be specified
     has_condition = any(
         field in rule
-        for field in ['exception_type', 'message_pattern', 'message_contains']
+        for field in [
+            'exception_type',
+            'exception_type_prefix',
+            'exception_type_suffix',
+            'message_pattern',
+            'message_contains',
+        ]
     )
 
     if not has_condition:
         raise RuleValidationError(
             "Rule must specify at least one condition: "
-            "'exception_type', 'message_pattern', or 'message_contains'"
+            "'exception_type', 'exception_type_prefix', 'exception_type_suffix', "
+            "'message_pattern', or 'message_contains'"
         )
 
     # Validate exception_type
     if 'exception_type' in rule:
         if not isinstance(rule['exception_type'], str):
             raise RuleValidationError("'exception_type' must be a string")
+
+    # Validate exception_type_prefix
+    if 'exception_type_prefix' in rule:
+        if not isinstance(rule['exception_type_prefix'], str):
+            raise RuleValidationError(
+                "'exception_type_prefix' must be a string"
+            )
+
+    # Validate exception_type_suffix
+    if 'exception_type_suffix' in rule:
+        if not isinstance(rule['exception_type_suffix'], str):
+            raise RuleValidationError(
+                "'exception_type_suffix' must be a string"
+            )
 
     # Validate message_pattern (regex)
     if 'message_pattern' in rule:

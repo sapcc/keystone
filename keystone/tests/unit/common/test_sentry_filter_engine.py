@@ -217,3 +217,63 @@ class SentryFilterEngineTestCase(unit.BaseTestCase):
         no_exception_hint = {'other_field': 'value'}
         result = engine.should_filter_event(no_exception_hint)
         self.assertFalse(result)
+
+    def test_exception_type_prefix_matching(self):
+        """Test exception type prefix matching."""
+        rules = [{'name': 'test_rule', 'exception_type_prefix': 'LDAP'}]
+        engine = SentryFilterEngine(rules)
+
+        # Matching prefix should be filtered
+        matching_hint1 = self._create_hint_with_exception('LDAPError', 'test')
+        result = engine.should_filter_event(matching_hint1)
+        self.assertTrue(result)
+
+        matching_hint2 = self._create_hint_with_exception(
+            'LDAPConnectionError', 'test'
+        )
+        result = engine.should_filter_event(matching_hint2)
+        self.assertTrue(result)
+
+        matching_hint3 = self._create_hint_with_exception(
+            'LDAPInvalidCredentialsError', 'test'
+        )
+        result = engine.should_filter_event(matching_hint3)
+        self.assertTrue(result)
+
+        # Non-matching prefix should not be filtered
+        non_matching_hint = self._create_hint_with_exception(
+            'DatabaseError', 'test'
+        )
+        result = engine.should_filter_event(non_matching_hint)
+        self.assertFalse(result)
+
+    def test_exception_type_suffix_matching(self):
+        """Test exception type suffix matching."""
+        rules = [{'name': 'test_rule', 'exception_type_suffix': 'NotFound'}]
+        engine = SentryFilterEngine(rules)
+
+        # Matching suffix should be filtered
+        matching_hint1 = self._create_hint_with_exception(
+            'TokenNotFound', 'test'
+        )
+        result = engine.should_filter_event(matching_hint1)
+        self.assertTrue(result)
+
+        matching_hint2 = self._create_hint_with_exception(
+            'UserNotFound', 'test'
+        )
+        result = engine.should_filter_event(matching_hint2)
+        self.assertTrue(result)
+
+        matching_hint3 = self._create_hint_with_exception(
+            'ProjectNotFound', 'test'
+        )
+        result = engine.should_filter_event(matching_hint3)
+        self.assertTrue(result)
+
+        # Non-matching suffix should not be filtered
+        non_matching_hint = self._create_hint_with_exception(
+            'ValidationError', 'test'
+        )
+        result = engine.should_filter_event(non_matching_hint)
+        self.assertFalse(result)
