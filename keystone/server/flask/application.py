@@ -11,6 +11,7 @@
 #    under the License.
 
 import functools
+import logging
 import sys
 
 import flask
@@ -194,6 +195,27 @@ def _handle_unknown_keystone_exception(error):
     return _handle_keystone_exception(new_exc)
 
 
+# NOTE(bbobrov): This is needed until LP#2144440 is fixed.
+# If it is fixed, revert the commit adding this functionality.
+class _LdapPoolInvalidCredentialsFilter(logging.Filter):
+    """Suppress ldappool ERROR tracebacks for invalid credentials.
+
+    The ldappool library logs ldap.INVALID_CREDENTIALS at ERROR level
+    with a full traceback (ldappool/__init__.py _create_connector()).
+    This is not a server error -- it just means a user typed a wrong
+    password. Keystone already logs the failed auth attempt at WARNING
+    level. Suppress the noisy ldappool traceback to keep logs clean.
+    """
+
+    def filter(self, record):
+        if (
+            record.levelno >= logging.ERROR
+            and 'Invalid credentials' in record.getMessage()
+        ):
+            return False
+        return True
+
+
 @fail_gracefully
 def application_factory(name='public'):
     if name not in ('admin', 'public'):
@@ -203,6 +225,12 @@ def application_factory(name='public'):
         )
 
     app = flask.Flask(name)
+
+    # Suppress ERROR-level tracebacks from ldappool for invalid
+    # credentials (wrong password). These are not server errors.
+    logging.getLogger('ldappool').addFilter(
+        _LdapPoolInvalidCredentialsFilter()
+    )
 
     # Register Error Handler Function for Keystone Errors.
     # NOTE(morgan): Flask passes errors to an error handling function. All of
