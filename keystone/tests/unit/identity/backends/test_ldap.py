@@ -10,8 +10,11 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+from unittest import mock
+
 from oslo_config import fixture as config_fixture
 
+from keystone.common import driver_hints
 from keystone.identity.backends import ldap
 from keystone.tests.unit import core
 from keystone.tests.unit.identity.backends import test_base
@@ -65,3 +68,35 @@ class TestIdentityDriver(core.BaseTestCase, test_base.IdentityDriverTests):
 
     def test_remove_user_from_group_no_group(self):
         self.skip_test_overrides('N/A: LDAP has no write support')
+
+    def test_list_users_in_group_uses_batched_queries(self):
+        group = self.create_group()
+        users = []
+        for _ in range(5):
+            user = self.create_user()
+            self.driver.add_user_to_group(user['id'], group['id'])
+            users.append(user)
+
+        # Track calls to user.get_filtered (the old per-user approach)
+        original_get_filtered = self.driver.user.get_filtered
+        get_filtered_calls = []
+
+        def tracking_get_filtered(user_id):
+            get_filtered_calls.append(user_id)
+            return original_get_filtered(user_id)
+
+        with mock.patch.object(
+            self.driver.user, 'get_filtered', side_effect=tracking_get_filtered
+        ):
+            result = self.driver.list_users_in_group(
+                group['id'], driver_hints.Hints()
+            )
+
+        self.assertEqual(5, len(result))
+        result_ids = {u['id'] for u in result}
+        expected_ids = {u['id'] for u in users}
+        self.assertEqual(expected_ids, result_ids)
+
+        # After batching, get_filtered should NOT be called per-user.
+        # It should be 0 calls (batch uses get_all instead).
+        self.assertEqual(0, len(get_filtered_calls))

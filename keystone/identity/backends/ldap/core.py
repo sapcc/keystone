@@ -123,19 +123,31 @@ class Identity(base.IdentityDriverBase):
                 user_id = self.user._dn_to_id(user_key)
             yield user_id
 
+    LDAP_BATCH_SIZE = 100
+
     def list_users_in_group(self, group_id, hints):
-        users = []
         group_members = self.group.list_group_users(group_id)
-        for user_id in self._transform_group_member_ids(group_members):
-            try:
-                users.append(self.user.get_filtered(user_id))
-            except exception.UserNotFound:
-                msg = (
-                    'Group member `%(user_id)s` for group `%(group_id)s`'
-                    ' not found in the directory. The user should be'
-                    ' removed from the group. The user will be ignored.'
+        user_ids = list(self._transform_group_member_ids(group_members))
+        if not user_ids:
+            return []
+
+        users = []
+        for i in range(0, len(user_ids), self.LDAP_BATCH_SIZE):
+            chunk = user_ids[i:i + self.LDAP_BATCH_SIZE]
+            id_filters = ''.join(
+                '({id_attr}={value})'.format(
+                    id_attr=self.user.id_attr,
+                    value=ldap.filter.escape_filter_chars(str(uid)),
                 )
-                LOG.debug(msg, {'user_id': user_id, 'group_id': group_id})
+                for uid in chunk
+            )
+            batch_filter = '(|{filters})'.format(filters=id_filters)
+            try:
+                batch_results = self.user.get_all(batch_filter)
+            except ldap.NO_SUCH_OBJECT:
+                continue
+            for user in batch_results:
+                users.append(self.user.filter_attributes(user))
         return users
 
     def check_user_in_group(self, user_id, group_id):
