@@ -1531,6 +1531,9 @@ class Manager(manager.Manager):
 
         group_driver.add_user_to_group(user_entity_id, group_entity_id)
 
+        # Invalidate cached list of users in this group
+        self.list_users_in_group.invalidate(self, group_id, None)
+
         # Invalidate user role assignments cache region, as it may now need to
         # include role assignments from the specified group to its users
         assignment.COMPUTED_ASSIGNMENTS_REGION.invalidate()
@@ -1560,6 +1563,9 @@ class Manager(manager.Manager):
 
         group_driver.remove_user_from_group(user_entity_id, group_entity_id)
         self._persist_revocation_event_for_user(user_id)
+
+        # Invalidate cached list of users in this group
+        self.list_users_in_group.invalidate(self, group_id, None)
 
         # Invalidate user role assignments cache region, as it may be caching
         # role assignments expanded from this group to this user
@@ -1629,6 +1635,7 @@ class Manager(manager.Manager):
 
     @domains_configured
     @exception_translated('group')
+    @MEMOIZE
     def list_users_in_group(self, group_id, hints=None):
         domain_id, driver, entity_id = self._get_domain_driver_and_entity_id(
             group_id
