@@ -626,21 +626,54 @@ class FakeLdap(common.LDAPHandler):
         # that's why we use only the first 5.
         results = self.search_s(*params[:5])
 
-        # extract limit from serverctrl
         serverctrls = params[5]
-        ctrl = serverctrls[0]
+        ctrl = serverctrls[0] if serverctrls else None
 
-        if ctrl.size:
-            rdata = results[: ctrl.size]
+        if ctrl and hasattr(ctrl, 'size') and ctrl.size:
+            cookie = self._get_paging_cookie(ctrl)
+            start_index = int(cookie) if cookie and cookie.isdigit() else 0
+            end_index = start_index + ctrl.size
+
+            rdata = results[start_index:end_index]
+
+            next_cookie = str(end_index) if end_index < len(results) else ''
+
+            response_ctrl = self._create_paging_control(ctrl.size, next_cookie)
+            serverctrls = [response_ctrl]
         else:
             rdata = results
+            serverctrls = []
 
-        # real result3 returns various service info -- rtype, rmsgid,
-        # serverctrls. Now this info is not used, so all this info is None
-        rtype = None
-        rmsgid = None
-        serverctrls = None
-        return (rtype, rdata, rmsgid, serverctrls)
+        # Return result tuple (rtype, rdata, rmsgid, serverctrls)
+        return (None, rdata, None, serverctrls)
+
+    def _get_paging_cookie(self, ctrl):
+        """Extract the paging cookie from a control.
+
+        Supports both old (python-ldap < 2.4) and new (>= 2.4) APIs.
+        """
+        if hasattr(ctrl, 'cookie'):
+            # New API (python-ldap >= 2.4)
+            return ctrl.cookie
+        elif hasattr(ctrl, 'controlValue'):
+            # Old API (python-ldap < 2.4)
+            return ctrl.controlValue[1]
+        return ''
+
+    def _create_paging_control(self, page_size, cookie):
+        """Create a paging response control with the given cookie."""
+        if hasattr(ldap.controls, 'SimplePagedResultsControl'):
+            # New API (python-ldap >= 2.4)
+            return ldap.controls.SimplePagedResultsControl(
+                criticality=False, size=page_size, cookie=cookie
+            )
+        else:
+            # Old API (python-ldap < 2.4)
+            return ldap.controls.SimplePagedResultsControl(
+                controlType=ldap.LDAP_CONTROL_PAGE_OID,
+                criticality=False,
+                controlValue=(page_size, cookie),
+            )
 
 
 class FakeLdapPool(FakeLdap):
