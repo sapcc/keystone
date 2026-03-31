@@ -460,6 +460,43 @@ class LDAPPagedResultsTest(unit.TestCase):
         attrlist = sorted([attr for attr in args[3] if attr])
         self.assertEqual(['mail', 'userPassword'], attrlist)
 
+    def test_list_users_returns_all_pages(self):
+        """Verify that list_users returns entries beyond a single page.
+
+        When the LDAP server enforces a page size limit (e.g. AD MaxPageSize),
+        _paged_search_s must loop through pages using the cookie and accumulate
+        all results.  This test uses page_size=2 with more users than that to
+        ensure all pages are fetched.
+        """
+        # Create extra users so total > page_size
+        extra_users = []
+        for _ in range(5):
+            user = unit.new_user_ref(domain_id=CONF.identity.default_domain_id)
+            user = PROVIDERS.identity_api.create_user(user)
+            extra_users.append(user)
+
+        # page_size=2 forces multiple LDAP pages to be fetched
+        self.config_fixture.config(group='ldap', page_size=2)
+
+        with mock.patch.object(
+            common_ldap.KeystoneLDAPHandler,
+            '_paged_search_s',
+            wraps=common_ldap.KeystoneLDAPHandler._paged_search_s,
+        ) as mock_paged:
+            users = PROVIDERS.identity_api.list_users()
+            self.assertTrue(
+                mock_paged.called,
+                '_paged_search_s was not called; pagination may be bypassed',
+            )
+
+        # All default fixture users plus the extra ones must be present
+        expected_count = len(default_fixtures.USERS) + len(extra_users)
+        self.assertEqual(expected_count, len(users))
+
+        extra_ids = {u['id'] for u in extra_users}
+        returned_ids = {u['id'] for u in users}
+        self.assertTrue(extra_ids.issubset(returned_ids))
+
 
 class CommonLdapTestCase(unit.BaseTestCase):
     """These test cases call functions in keystone.common.ldap."""
