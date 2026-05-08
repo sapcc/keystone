@@ -11,6 +11,8 @@
 # under the License.
 
 import functools
+import logging
+import logging.handlers
 import typing as ty
 import uuid
 
@@ -26,6 +28,7 @@ from keystone.common import json_home
 from keystone.common import rbac_enforcer
 import keystone.conf
 from keystone import exception
+from keystone.server.flask import application as flask_application
 from keystone.server.flask import common as flask_common
 from keystone.server.flask.request_processing import json_body
 from keystone.tests.unit import rest
@@ -802,3 +805,60 @@ class TestKeystoneFlaskUnrouted404(rest.RestfulTestCase):
             self.assertIn('text/html', resp.headers['Content-Type'])
             # Ensure the more generic flask/werkzeug 404 response is emitted
             self.assertTrue(b'404 Not Found' in resp.data)
+
+
+class TestLdapPoolInvalidCredentialsFilter(rest.RestfulTestCase):
+    """Tests for suppressing ldappool INVALID_CREDENTIALS tracebacks.
+
+    The ldappool library logs ldap.INVALID_CREDENTIALS at ERROR level
+    with a full traceback inside _create_connector(). This is not a
+    server error but a normal event (wrong password). Keystone should
+    install a logging filter on the 'ldappool' logger to suppress these.
+    """
+
+    def test_filter_installed_on_ldappool_logger(self):
+        """Verify application_factory installs the filter."""
+        ldappool_logger = logging.getLogger('ldappool')
+        filter_types = [type(f).__name__ for f in ldappool_logger.filters]
+        self.assertIn(
+            '_LdapPoolInvalidCredentialsFilter',
+            filter_types,
+            'application_factory should install '
+            '_LdapPoolInvalidCredentialsFilter on the ldappool logger',
+        )
+
+    def test_filter_suppresses_invalid_credentials_error(self):
+        """Verify the filter drops ERROR records with invalid credentials."""
+        ldappool_logger = logging.getLogger('ldappool')
+        with self.assertLogs('ldappool', level='ERROR') as cm:
+            # Emit a real server error -- should pass through
+            ldappool_logger.error('Connection to LDAP server failed')
+        # The non-credential error should be captured
+        self.assertTrue(
+            any('Connection to LDAP server failed' in m for m in cm.output)
+        )
+
+    def test_filter_suppresses_invalid_credentials_message(self):
+        """Verify that invalid credentials ERROR is actually suppressed."""
+        ldappool_logger = logging.getLogger('ldappool')
+        handler = logging.handlers.MemoryHandler(capacity=100)
+        handler.setLevel(logging.DEBUG)
+        ldappool_logger.addHandler(handler)
+        self.addCleanup(ldappool_logger.removeHandler, handler)
+
+        ldappool_logger.error(
+            'Invalid credentials. Cancelling retry', exc_info=True
+        )
+        ldappool_logger.error('Connection to LDAP server failed')
+
+        messages = [r.getMessage() for r in handler.buffer]
+        self.assertNotIn(
+            'Invalid credentials. Cancelling retry',
+            messages,
+            'Invalid credentials ERROR should be suppressed by the filter',
+        )
+        self.assertIn(
+            'Connection to LDAP server failed',
+            messages,
+            'Non-credential errors should still pass through',
+        )
