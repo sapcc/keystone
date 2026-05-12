@@ -58,6 +58,16 @@ ACTIONS = _ACTIONS(
 )
 """The actions on resources."""
 
+# CADF action taxonomy uses the imperative form with '/' separator
+# e.g., 'create/user' instead of 'created.user'
+_CADF_ACTION_MAP = {
+    'created': 'create',
+    'deleted': 'delete',
+    'disabled': 'disable',
+    'updated': 'update',
+    'internal': 'internal',
+}
+
 CADF_TYPE_MAP = {
     'group': taxonomy.SECURITY_GROUP,
     'project': taxonomy.SECURITY_PROJECT,
@@ -106,7 +116,6 @@ def build_audit_initiator():
     oslo_context = flask.request.environ.get(context.REQUEST_CONTEXT_ENV)
     if oslo_context.user_id:
         initiator.id = utils.resource_uuid(oslo_context.user_id)
-        initiator.user_id = oslo_context.user_id
 
     if oslo_context.project_id:
         initiator.project_id = oslo_context.project_id
@@ -573,7 +582,9 @@ def _create_cadf_payload(
     target = resource.Resource(typeURI=target_uri, id=resource_id)
 
     audit_kwargs = {'resource_info': resource_id}
-    cadf_action = f'{operation}.{resource_type}'
+    cadf_action = (
+        f'{_CADF_ACTION_MAP.get(operation, operation)}/{resource_type}'
+    )
     event_type = f'{SERVICE}.{resource_type}.{operation}'
 
     _send_audit_notification(
@@ -675,7 +686,6 @@ def _get_request_audit_info(context, user_id=None):
     initiator = resource.Resource(typeURI=taxonomy.ACCOUNT_USER, host=host)
 
     if user_id:
-        initiator.user_id = user_id
         initiator.id = utils.resource_uuid(user_id)
         initiator = _add_username_to_initiator(initiator)
 
@@ -713,9 +723,8 @@ class CadfNotificationWrapper:
             """Will always send a notification."""
             target = resource.Resource(typeURI=taxonomy.ACCOUNT_USER)
             initiator = build_audit_initiator()
-            initiator.user_id = user_id
-            initiator = _add_username_to_initiator(initiator)
             initiator.id = utils.resource_uuid(user_id)
+            initiator = _add_username_to_initiator(initiator)
             try:
                 result = f(wrapped_self, user_id, *args, **kwargs)
             except (exception.AccountLocked, exception.PasswordExpired) as ex:
@@ -809,7 +818,7 @@ class CadfRoleAssignmentNotificationWrapper:
     ROLE_ASSIGNMENT = 'role_assignment'
 
     def __init__(self, operation):
-        self.action = f'{operation}.{self.ROLE_ASSIGNMENT}'
+        self.action = f'{_CADF_ACTION_MAP.get(operation, operation)}/{self.ROLE_ASSIGNMENT}'
         self.event_type = f'{SERVICE}.{self.ROLE_ASSIGNMENT}.{operation}'
 
     def __call__(self, f):
@@ -865,19 +874,40 @@ class CadfRoleAssignmentNotificationWrapper:
             initiator = call_args.get('initiator', None)
             target = resource.Resource(typeURI=taxonomy.ACCOUNT_USER)
 
-            audit_kwargs = {}
+            # Set scope on the target resource (CADF-compliant)
             if call_args['project_id']:
-                audit_kwargs['project'] = call_args['project_id']
+                target.project_id = call_args['project_id']
             elif call_args['domain_id']:
-                audit_kwargs['domain'] = call_args['domain_id']
+                target.domain_id = call_args['domain_id']
 
+            # Set target.id to the actor (user or group being assigned)
             if call_args['user_id']:
-                audit_kwargs['user'] = call_args['user_id']
+                target.id = call_args['user_id']
             elif call_args['group_id']:
-                audit_kwargs['group'] = call_args['group_id']
+                target.id = call_args['group_id']
 
-            audit_kwargs['inherited_to_projects'] = inherited
-            audit_kwargs['role'] = role_id
+            # Build CADF attachments for role assignment metadata
+            # Uses CADF attachment typeURIs per the DMTF CADF spec
+            audit_attachments = [
+                attachment.Attachment(
+                    typeURI='/data/security/role',
+                    content=role_id,
+                    name='role_id',
+                ),
+                attachment.Attachment(
+                    typeURI='xs:boolean',
+                    content=str(inherited).lower(),
+                    name='inherited_to_projects',
+                ),
+            ]
+            if call_args['group_id']:
+                audit_attachments.append(
+                    attachment.Attachment(
+                        typeURI='/data/security/group',
+                        content=call_args['group_id'],
+                        name='group_id',
+                    )
+                )
 
             try:
                 result = f(wrapped_self, role_id, *args, **kwargs)
@@ -888,7 +918,7 @@ class CadfRoleAssignmentNotificationWrapper:
                     taxonomy.OUTCOME_FAILURE,
                     target,
                     self.event_type,
-                    **audit_kwargs,
+                    attachments=audit_attachments,
                 )
                 raise
             else:
@@ -898,7 +928,7 @@ class CadfRoleAssignmentNotificationWrapper:
                     taxonomy.OUTCOME_SUCCESS,
                     target,
                     self.event_type,
-                    **audit_kwargs,
+                    attachments=audit_attachments,
                 )
                 return result
 
@@ -1054,14 +1084,16 @@ def _check_notification_opt_out(event_type, outcome):
 
 
 def _add_username_to_initiator(initiator):
-    """Add the username to the initiator if missing."""
-    if hasattr(initiator, 'username'):
+    """Add the username to the initiator using the CADF-compliant 'name' field."""
+    if initiator is None:
+        return initiator
+    if 'name' in initiator.as_dict():
         return initiator
     try:
-        user_ref = PROVIDERS.identity_api.get_user(initiator.user_id)
-        initiator.username = user_ref['name']
+        user_ref = PROVIDERS.identity_api.get_user(initiator.id)
+        initiator.name = user_ref['name']
     except (exception.UserNotFound, AttributeError):
-        # Either user not found or no user_id, move along
+        # Either user not found or no id, move along
         pass
 
     return initiator
