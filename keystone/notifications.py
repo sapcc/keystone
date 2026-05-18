@@ -554,8 +554,10 @@ def _create_cadf_payload(
     top level value for the ``resource_info`` key. Lastly, the ``operation`` is
     used to create the CADF ``action``, and the ``event_type`` name.
 
-    As per the CADF specification, the ``action`` must start with create,
-    update, delete, etc... i.e.: created.user or deleted.role
+    As per the CADF specification, the ``action`` uses the imperative
+    taxonomy with a ``/`` separator, i.e.: ``create/user`` or
+    ``delete/role``. The mapping from oslo operation verbs to CADF action
+    verbs is defined in ``_CADF_ACTION_MAP``.
 
     However the ``event_type`` is an OpenStack-ism that is typically of the
     form project.resource.operation. i.e.: identity.project.updated
@@ -805,7 +807,7 @@ class CadfRoleAssignmentNotificationWrapper:
     This function is only used for role assignment events. Its ``action`` and
     ``event_type`` are dictated below.
 
-    - action: ``created.role_assignment`` or ``deleted.role_assignment``
+    - action: ``create/role_assignment`` or ``delete/role_assignment``
     - event_type: ``identity.role_assignment.created`` or
         ``identity.role_assignment.deleted``
 
@@ -872,7 +874,16 @@ class CadfRoleAssignmentNotificationWrapper:
             )
             inherited = call_args['inherited_to_projects']
             initiator = call_args.get('initiator', None)
-            target = resource.Resource(typeURI=taxonomy.ACCOUNT_USER)
+
+            # Pick a CADF target typeURI that matches the actor kind.
+            # pycadf has no ACCOUNT_GROUP constant; use SECURITY_GROUP
+            # ('data/security/group') for group assignments so the
+            # target resource type is consistent with target.id.
+            if call_args['group_id']:
+                target_type_uri = taxonomy.SECURITY_GROUP
+            else:
+                target_type_uri = taxonomy.ACCOUNT_USER
+            target = resource.Resource(typeURI=target_type_uri)
 
             # Set scope on the target resource (CADF-compliant)
             if call_args['project_id']:
