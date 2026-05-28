@@ -30,7 +30,7 @@ RULE_ADMIN_OR_TOKEN_SUBJECT = 'rule:admin_or_token_subject'  # nosec
 RULE_REVOKE_EVENT_OR_ADMIN = 'rule:revoke_event_or_admin'
 RULE_SERVICE_ADMIN_OR_TOKEN_SUBJECT = 'rule:service_admin_or_token_subject'  # nosec
 RULE_SERVICE_OR_ADMIN = 'rule:service_or_admin'
-RULE_TRUST_OWNER = 'user_id:%(trust.trustor_user_id)s'
+RULE_TRUST_OWNER = 'user_id:%(target.trust.trustor_user_id)s'
 
 # We are explicitly setting system_scope:all in these check strings because
 # they provide backwards compatibility in the event a deployment sets
@@ -61,6 +61,10 @@ ADMIN_OR_SYSTEM_READER_OR_CRED_OWNER = (
 )
 ADMIN_OR_CRED_OWNER = (
     '(' + RULE_ADMIN_REQUIRED + ') ' 'or user_id:%(target.credential.user_id)s'
+)
+ADMIN_OR_MEMBER_AND_CRED_OWNER = (
+    '(' + RULE_ADMIN_REQUIRED + ') or '
+    '(role:member and user_id:%(target.credential.user_id)s)'
 )
 
 # This rule template is meant for restricting role assignments done by domain

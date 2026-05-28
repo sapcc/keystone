@@ -873,18 +873,29 @@ class TokenAPITests:
         # Make sure the token is valid
         r = self._validate_token(unscoped_token)
         self.assertValidUnscopedTokenResponse(r)
+        user_id = self.user["id"]
+        domain_id, driver, entity_id = (
+            PROVIDERS.identity_api._get_domain_driver_and_entity_id(user_id)
+        )
+        user = PROVIDERS.identity_api.get_user(user_id)
+        user["enabled"] = False
         # Disable the user
-        self._set_user_enabled(self.user, enabled=False)
+        PROVIDERS.identity_api._update_user_with_federated_objects(
+            user, driver, entity_id
+        )
+        PROVIDERS.identity_api.get_user.invalidate(self, user_id)
         # Ensure validating a token for a disabled user fails
         self._validate_token(
             unscoped_token, expected_status=http.client.NOT_FOUND
         )
-        # Enable the user
-        self._set_user_enabled(self.user)
-        # Ensure validating a token for a re-enabled user fails
-        self._validate_token(
-            unscoped_token, expected_status=http.client.NOT_FOUND
+        ## Re-enable the user
+        user["enabled"] = True
+        PROVIDERS.identity_api._update_user_with_federated_objects(
+            user, driver, entity_id
         )
+        PROVIDERS.identity_api.get_user.invalidate(self, user_id)
+        ## Ensure validating a token for a re-enabled user passes
+        self._validate_token(unscoped_token, expected_status=http.client.OK)
 
     def test_unscoped_token_is_invalid_after_disabling_user_domain(self):
         unscoped_token = self._get_unscoped_token()
@@ -6526,3 +6537,78 @@ class ApplicationCredentialAuth(test_v3.RestfulTestCase):
         )
         token = resp.headers.get('X-Subject-Token')
         self._validate_token(token, expected_status=http.client.NOT_FOUND)
+
+    def test_app_cred_auth_with_injected_user_id_is_ignored(self):
+        """Caller-supplied user ID in app cred payload must be ignored.
+
+        When authenticating by application credential ID, the token must
+        always be attributed to the credential owner. An attacker-supplied
+        user ID must not override the credential owner's identity.
+        LP#2148477 -- user impersonation via app credential auth.
+        """
+        victim = unit.create_user(
+            PROVIDERS.identity_api, domain_id=self.domain_id
+        )
+        PROVIDERS.assignment_api.add_role_to_user_and_project(
+            victim['id'], self.project_id, self.role_id
+        )
+
+        app_cred = self._make_app_cred()
+        app_cred_ref = self.app_cred_api.create_application_credential(
+            app_cred
+        )
+
+        auth_body = {
+            'auth': {
+                'identity': {
+                    'methods': ['application_credential'],
+                    'application_credential': {
+                        'id': app_cred_ref['id'],
+                        'secret': app_cred['secret'],
+                        'user': {'id': victim['id']},
+                    },
+                }
+            }
+        }
+        r = self.v3_create_token(auth_body)
+        token_data = r.result['token']
+        self.assertEqual(self.user['id'], token_data['user']['id'])
+        self.assertNotEqual(victim['id'], token_data['user']['id'])
+
+    def test_app_cred_auth_with_injected_username_is_ignored(self):
+        """Caller-supplied username in app cred payload must be ignored.
+
+        Same as the user ID variant but uses the victim's name and domain,
+        which are typically predictable. LP#2148477.
+        """
+        victim = unit.create_user(
+            PROVIDERS.identity_api, domain_id=self.domain_id
+        )
+        PROVIDERS.assignment_api.add_role_to_user_and_project(
+            victim['id'], self.project_id, self.role_id
+        )
+
+        app_cred = self._make_app_cred()
+        app_cred_ref = self.app_cred_api.create_application_credential(
+            app_cred
+        )
+
+        auth_body = {
+            'auth': {
+                'identity': {
+                    'methods': ['application_credential'],
+                    'application_credential': {
+                        'id': app_cred_ref['id'],
+                        'secret': app_cred['secret'],
+                        'user': {
+                            'name': victim['name'],
+                            'domain': {'name': self.domain['name']},
+                        },
+                    },
+                }
+            }
+        }
+        r = self.v3_create_token(auth_body)
+        token_data = r.result['token']
+        self.assertEqual(self.user['id'], token_data['user']['id'])
+        self.assertNotEqual(victim['id'], token_data['user']['id'])
