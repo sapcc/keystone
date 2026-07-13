@@ -1143,6 +1143,7 @@ class KeystoneLDAPHandler(LDAPHandler):
         filterstr='(objectClass=*)',
         attrlist=None,
         attrsonly=0,
+        sizelimit=0,
     ):
         # NOTE(morganfainberg): Remove "None" singletons from this list, which
         # allows us to set mapped attributes to "None" as defaults in config.
@@ -1160,13 +1161,15 @@ class KeystoneLDAPHandler(LDAPHandler):
         )
         if self.page_size:
             ldap_result = self._paged_search_s(
-                base, scope, filterstr, attrlist
+                base, scope, filterstr, attrlist, sizelimit=sizelimit
             )
         else:
             try:
                 ldap_result = self.conn.search_s(
                     base, scope, filterstr, attrlist, attrsonly
                 )
+                if sizelimit:
+                    ldap_result = ldap_result[:sizelimit]
             except ldap.SIZELIMIT_EXCEEDED:
                 raise exception.LDAPSizeLimitExceeded()
 
@@ -1217,8 +1220,6 @@ class KeystoneLDAPHandler(LDAPHandler):
     def _paged_search_s(
         self, base, scope, filterstr, attrlist=None, sizelimit=0
     ):
-        if attrlist is not None:
-            attrlist = [attr for attr in attrlist if attr is not None]
         res = []
         use_old_paging_api = False
         # The API for the simple paged results control changed between
@@ -1245,16 +1246,15 @@ class KeystoneLDAPHandler(LDAPHandler):
         while True:
             # Request to the ldap server a page with 'page_size' entries
             rtype, rdata, rmsgid, serverctrls = self.conn.result3(message)
-            res.extend(convert_ldap_result(rdata))
+            res.extend(rdata or [])
 
-            # Handle case where serverctrls is None (e.g., in fake LDAP)
             pctrls = [
                 c
                 for c in (serverctrls or [])
                 if c.controlType == page_ctrl_oid
             ]
 
-            # Check if we've collected enough results
+            # Stop once we have accumulated enough results.
             if sizelimit and len(res) >= sizelimit:
                 res = res[:sizelimit]
                 break
@@ -1827,33 +1827,24 @@ class BaseLdap:
             self.object_class,
             self.id_attr,
         )
-        candidates = [
-            self.id_attr,
-            *self.attribute_mapping.values(),
-            *self.extra_attr_mapping,
-        ]
-        attrs = list({a for a in candidates if a is not None})
-
-        limit = hints.limit if hints else None
+        attrs = list(
+            set(
+                [self.id_attr]
+                + list(self.attribute_mapping.values())
+                + list(self.extra_attr_mapping.keys())
+            )
+        )
+        sizelimit = hints.limit['limit'] if hints and hints.limit else 0
 
         with self.get_connection() as conn:
             try:
-                if conn.page_size and limit:
-                    res = conn._paged_search_s(
-                        self.tree_dn,
-                        self.LDAP_SCOPE,
-                        query,
-                        attrs,
-                        sizelimit=limit['limit'],
-                    )
-                elif conn.page_size:
-                    res = conn._paged_search_s(
-                        self.tree_dn, self.LDAP_SCOPE, query, attrs
-                    )
-                else:
-                    res = conn.search_s(
-                        self.tree_dn, self.LDAP_SCOPE, query, attrs
-                    )
+                res = conn.search_s(
+                    self.tree_dn,
+                    self.LDAP_SCOPE,
+                    query,
+                    attrs,
+                    sizelimit=sizelimit,
+                )
             except ldap.NO_SUCH_OBJECT:
                 return []
         # TODO(prashkre): add functional testing for missing name attribute
