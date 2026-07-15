@@ -1440,6 +1440,188 @@ class ResourceTestCase(test_v3.RestfulTestCase, test_v3.AssignmentTestMixin):
             new_regular_project['id'], [p['id'] for p in r.result['projects']]
         )
 
+    def test_list_projects_is_domain_filter_domain_scoped_token_with_domain_id_param(self):
+        """Domain-scoped token with ?is_domain=True&domain_id= cannot leak other domains."""
+        path = '/domains/{}/users/{}/roles/{}'.format(
+            self.domain_id, self.user['id'], self.role['id']
+        )
+        self.put(path=path)
+
+        auth = self.build_authentication_request(
+            user_id=self.user['id'],
+            password=self.user['password'],
+            domain_id=self.domain_id,
+        )
+
+        other_domain_project = unit.new_project_ref(is_domain=True)
+        other_domain_project = PROVIDERS.resource_api.create_project(
+            other_domain_project['id'], other_domain_project
+        )
+
+        # Passing domain_id of another domain must not return it
+        r = self.get(
+            '/projects?is_domain=True&domain_id=%s' % other_domain_project['id'],
+            auth=auth,
+            expected_status=200,
+        )
+        result_ids = [p['id'] for p in r.result['projects']]
+        self.assertNotIn(other_domain_project['id'], result_ids)
+        # Should still only see own domain (or nothing if the filter eliminates it too)
+        self.assertNotIn(
+            other_domain_project['id'],
+            result_ids,
+            'Domain-scoped token leaked another domain via domain_id param',
+        )
+
+    def test_list_projects_is_domain_filter_domain_scoped_token_truthy_variants(self):
+        """All schema-valid truthy/falsy values for is_domain are handled correctly.
+
+        The request schema (parameter_types.boolean) allows:
+          truthy: True, 'True', 'TRUE', 'true', '1', 'y', 'Y', 'on', 'ON', 'yes'
+          falsy:  False, 'False', 'FALSE', 'false', '0', 'n', 'N', 'off', 'OFF', 'no'
+          empty string '' is also valid and treated as truthy (oslo default=True)
+        All truthy variants must trigger domain-leak protection under a domain-scoped token.
+        """
+        path = '/domains/{}/users/{}/roles/{}'.format(
+            self.domain_id, self.user['id'], self.role['id']
+        )
+        self.put(path=path)
+
+        auth = self.build_authentication_request(
+            user_id=self.user['id'],
+            password=self.user['password'],
+            domain_id=self.domain_id,
+        )
+
+        other_domain_project = unit.new_project_ref(is_domain=True)
+        other_domain_project = PROVIDERS.resource_api.create_project(
+            other_domain_project['id'], other_domain_project
+        )
+
+        truthy_values = ['true', '1', 'y', 'on', 'yes']
+        falsy_values = ['false', '0', 'n', 'off', 'no']
+
+        for val in truthy_values:
+            r = self.get(
+                '/projects?is_domain=%s' % val, auth=auth, expected_status=200
+            )
+            result_ids = [p['id'] for p in r.result['projects']]
+            self.assertIn(
+                self.domain_id, result_ids,
+                'is_domain=%s: own domain missing' % val,
+            )
+            self.assertEqual(
+                1, len(result_ids),
+                'is_domain=%s: expected 1 result, got %d' % (val, len(result_ids)),
+            )
+            self.assertNotIn(
+                other_domain_project['id'], result_ids,
+                'is_domain=%s: other domain leaked' % val,
+            )
+
+        for val in falsy_values:
+            r = self.get(
+                '/projects?is_domain=%s' % val, auth=auth, expected_status=200
+            )
+            result_ids = [p['id'] for p in r.result['projects']]
+            self.assertNotIn(
+                other_domain_project['id'], result_ids,
+                'is_domain=%s: other domain leaked' % val,
+            )
+            self.assertNotIn(
+                self.domain_id, result_ids,
+                'is_domain=%s: domain appeared in non-domain listing' % val,
+            )
+
+    def test_list_projects_no_is_domain_param_domain_scoped_token(self):
+        """Domain-scoped token with no is_domain param only sees own projects."""
+        path = '/domains/{}/users/{}/roles/{}'.format(
+            self.domain_id, self.user['id'], self.role['id']
+        )
+        self.put(path=path)
+
+        auth = self.build_authentication_request(
+            user_id=self.user['id'],
+            password=self.user['password'],
+            domain_id=self.domain_id,
+        )
+
+        other_domain_project = unit.new_project_ref(is_domain=True)
+        other_domain_project = PROVIDERS.resource_api.create_project(
+            other_domain_project['id'], other_domain_project
+        )
+        own_project = unit.new_project_ref(
+            is_domain=False, domain_id=self.domain_id
+        )
+        own_project = PROVIDERS.resource_api.create_project(
+            own_project['id'], own_project
+        )
+
+        r = self.get('/projects', auth=auth, expected_status=200)
+        result_ids = [p['id'] for p in r.result['projects']]
+
+        # Own domain's regular projects are visible
+        self.assertIn(own_project['id'], result_ids)
+        # Other domains are not visible
+        self.assertNotIn(other_domain_project['id'], result_ids)
+        # Domain entries (is_domain=True) are excluded by the default filter
+        self.assertNotIn(self.domain_id, result_ids)
+
+    def test_list_projects_is_domain_project_scoped_token(self):
+        """Project-scoped token calling ?is_domain=True sees all domains.
+
+        This is intentional: project-scoped tokens have no domain_id on the
+        context so the post-filter is skipped. cloud_reader/cloud_admin
+        use project-scoped tokens and must retain full visibility.
+        """
+        own_project = unit.new_project_ref(domain_id=self.domain_id)
+        own_project = PROVIDERS.resource_api.create_project(
+            own_project['id'], own_project
+        )
+        self.put(
+            '/projects/{}/users/{}/roles/{}'.format(
+                own_project['id'], self.user['id'], self.role['id']
+            )
+        )
+
+        auth = self.build_authentication_request(
+            user_id=self.user['id'],
+            password=self.user['password'],
+            project_id=own_project['id'],
+        )
+
+        other_domain = unit.new_project_ref(is_domain=True)
+        other_domain = PROVIDERS.resource_api.create_project(
+            other_domain['id'], other_domain
+        )
+
+        r = self.get('/projects?is_domain=True', auth=auth, expected_status=200)
+        result_ids = [p['id'] for p in r.result['projects']]
+
+        # Project-scoped token is not restricted — other domains visible
+        self.assertIn(other_domain['id'], result_ids)
+
+    def test_list_projects_is_domain_system_scoped_token(self):
+        """System-scoped token calling ?is_domain=True sees all domains."""
+        PROVIDERS.assignment_api.create_system_grant_for_user(
+            self.user['id'], self.role['id']
+        )
+        system_token = self.get_system_scoped_token()
+
+        other_domain = unit.new_project_ref(is_domain=True)
+        other_domain = PROVIDERS.resource_api.create_project(
+            other_domain['id'], other_domain
+        )
+
+        r = self.get(
+            '/projects?is_domain=True',
+            token=system_token,
+            expected_status=200,
+        )
+        result_ids = [p['id'] for p in r.result['projects']]
+
+        self.assertIn(other_domain['id'], result_ids)
+
     def test_list_project_is_domain_filter_default(self):
         """Default project list should not see projects acting as domains."""
         # Get the initial count of regular projects
