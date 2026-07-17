@@ -1290,6 +1290,13 @@ class Manager(manager.Manager):
             # driver selection, so remove any such filter.
             self._mark_domain_id_filter_satisfied(hints)
         hints = self._translate_expired_password_hints(hints)
+        # LDAP markers are public (hashed) IDs; resolve to local IDs for the driver.
+        if hints.marker and not driver.generates_uuids():
+            local_id_ref = PROVIDERS.id_mapping_api.get_id_mapping(
+                hints.marker
+            )
+            if local_id_ref:
+                hints.set_marker(local_id_ref['local_id'])
         ref_list = self._handle_shadow_and_local_users(driver, hints)
         return self._set_domain_id_and_mapping(
             ref_list, domain_scope, driver, mapping.EntityType.USER
