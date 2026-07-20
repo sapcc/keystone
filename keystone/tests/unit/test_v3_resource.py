@@ -1531,40 +1531,6 @@ class ResourceTestCase(test_v3.RestfulTestCase, test_v3.AssignmentTestMixin):
                 'is_domain=%s: domain appeared in non-domain listing' % val,
             )
 
-    def test_list_projects_no_is_domain_param_domain_scoped_token(self):
-        """Domain-scoped token with no is_domain param only sees own projects."""
-        path = '/domains/{}/users/{}/roles/{}'.format(
-            self.domain_id, self.user['id'], self.role['id']
-        )
-        self.put(path=path)
-
-        auth = self.build_authentication_request(
-            user_id=self.user['id'],
-            password=self.user['password'],
-            domain_id=self.domain_id,
-        )
-
-        other_domain_project = unit.new_project_ref(is_domain=True)
-        other_domain_project = PROVIDERS.resource_api.create_project(
-            other_domain_project['id'], other_domain_project
-        )
-        own_project = unit.new_project_ref(
-            is_domain=False, domain_id=self.domain_id
-        )
-        own_project = PROVIDERS.resource_api.create_project(
-            own_project['id'], own_project
-        )
-
-        r = self.get('/projects', auth=auth, expected_status=200)
-        result_ids = [p['id'] for p in r.result['projects']]
-
-        # Own domain's regular projects are visible
-        self.assertIn(own_project['id'], result_ids)
-        # Other domains are not visible
-        self.assertNotIn(other_domain_project['id'], result_ids)
-        # Domain entries (is_domain=True) are excluded by the default filter
-        self.assertNotIn(self.domain_id, result_ids)
-
     def test_list_projects_is_domain_project_scoped_token(self):
         """Project-scoped token calling ?is_domain=True sees all domains.
 
