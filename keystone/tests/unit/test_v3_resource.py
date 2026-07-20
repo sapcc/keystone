@@ -1453,22 +1453,20 @@ class ResourceTestCase(test_v3.RestfulTestCase, test_v3.AssignmentTestMixin):
             domain_id=self.domain_id,
         )
 
-        other_domain_project = unit.new_project_ref(is_domain=True)
-        other_domain_project = PROVIDERS.resource_api.create_project(
-            other_domain_project['id'], other_domain_project
+        other_domain = unit.new_project_ref(is_domain=True)
+        other_domain = PROVIDERS.resource_api.create_project(
+            other_domain['id'], other_domain
         )
 
         # Passing domain_id of another domain must not return it
         r = self.get(
-            '/projects?is_domain=True&domain_id=%s' % other_domain_project['id'],
+            '/projects?is_domain=True&domain_id=%s' % other_domain['id'],
             auth=auth,
             expected_status=200,
         )
         result_ids = [p['id'] for p in r.result['projects']]
-        self.assertNotIn(other_domain_project['id'], result_ids)
-        # Should still only see own domain (or nothing if the filter eliminates it too)
         self.assertNotIn(
-            other_domain_project['id'],
+            other_domain['id'],
             result_ids,
             'Domain-scoped token leaked another domain via domain_id param',
         )
