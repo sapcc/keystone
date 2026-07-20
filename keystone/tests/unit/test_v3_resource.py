@@ -1568,9 +1568,8 @@ class ResourceTestCase(test_v3.RestfulTestCase, test_v3.AssignmentTestMixin):
     def test_list_projects_is_domain_project_scoped_token(self):
         """Project-scoped token calling ?is_domain=True sees all domains.
 
-        This is intentional: project-scoped tokens have no domain_id on the
-        context so the post-filter is skipped. cloud_reader/cloud_admin
-        use project-scoped tokens and must retain full visibility.
+        Project-scoped tokens have no domain_id on the context so the
+        post-filter is skipped and all domains remain visible.
         """
         own_project = unit.new_project_ref(domain_id=self.domain_id)
         own_project = PROVIDERS.resource_api.create_project(
