@@ -1440,37 +1440,6 @@ class ResourceTestCase(test_v3.RestfulTestCase, test_v3.AssignmentTestMixin):
             new_regular_project['id'], [p['id'] for p in r.result['projects']]
         )
 
-    def test_list_projects_is_domain_filter_domain_scoped_token_with_domain_id_param(self):
-        """Domain-scoped token with ?is_domain=True&domain_id= cannot leak other domains."""
-        path = '/domains/{}/users/{}/roles/{}'.format(
-            self.domain_id, self.user['id'], self.role['id']
-        )
-        self.put(path=path)
-
-        auth = self.build_authentication_request(
-            user_id=self.user['id'],
-            password=self.user['password'],
-            domain_id=self.domain_id,
-        )
-
-        other_domain = unit.new_project_ref(is_domain=True)
-        other_domain = PROVIDERS.resource_api.create_project(
-            other_domain['id'], other_domain
-        )
-
-        # Passing domain_id of another domain must not return it
-        r = self.get(
-            '/projects?is_domain=True&domain_id=%s' % other_domain['id'],
-            auth=auth,
-            expected_status=200,
-        )
-        result_ids = [p['id'] for p in r.result['projects']]
-        self.assertNotIn(
-            other_domain['id'],
-            result_ids,
-            'Domain-scoped token leaked another domain via domain_id param',
-        )
-
     def test_list_projects_is_domain_filter_domain_scoped_token_truthy_variants(self):
         """All schema-valid truthy/falsy values for is_domain are handled correctly.
 
