@@ -1408,25 +1408,27 @@ class ResourceTestCase(test_v3.RestfulTestCase, test_v3.AssignmentTestMixin):
             domain_id=self.domain_id,
         )
 
-        # Check that listing the domains does not result in an empty list
-        new_is_domain_project = unit.new_project_ref(is_domain=True)
-        new_is_domain_project = PROVIDERS.resource_api.create_project(
-            new_is_domain_project['id'], new_is_domain_project
+        # Create a second domain that the token-holder should NOT be able to see
+        other_domain_project = unit.new_project_ref(is_domain=True)
+        other_domain_project = PROVIDERS.resource_api.create_project(
+            other_domain_project['id'], other_domain_project
         )
 
         r = self.get(
             '/projects?is_domain=True', auth=auth, expected_status=200
         )
-        self.assertIn(
-            new_is_domain_project['id'],
-            [p['id'] for p in r.result['projects']],
-        )
+        result_ids = [p['id'] for p in r.result['projects']]
 
-        # Check that the projects are still being filtered
-        # The previously created is_domain project is a domain, so
-        # we can reuse it for the project
+        # Domain-scoped token must only see its own domain
+        self.assertIn(self.domain_id, result_ids)
+        self.assertEqual(1, len(result_ids))
+
+        # Other domains must not be visible
+        self.assertNotIn(other_domain_project['id'], result_ids)
+
+        # Check that regular project filtering by domain_id is still applied
         new_regular_project = unit.new_project_ref(
-            is_domain=False, domain_id=new_is_domain_project['id']
+            is_domain=False, domain_id=self.domain_id
         )
         new_regular_project = PROVIDERS.resource_api.create_project(
             new_regular_project['id'], new_regular_project
@@ -1434,7 +1436,7 @@ class ResourceTestCase(test_v3.RestfulTestCase, test_v3.AssignmentTestMixin):
         r = self.get(
             '/projects?is_domain=False', auth=auth, expected_status=200
         )
-        self.assertNotIn(
+        self.assertIn(
             new_regular_project['id'], [p['id'] for p in r.result['projects']]
         )
 
