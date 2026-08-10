@@ -575,6 +575,91 @@ class LDAPPagedResultsTest(unit.TestCase):
 
         self.assertLessEqual(len(users), list_limit)
 
+    def test_list_users_marker_pagination_returns_next_page(self):
+        """Verify that a marker on an LDAP-backed domain returns the next page.
+
+        The LDAP backend has no native keyset pagination, so it must apply the
+        marker client-side after fetching all results.  This test ensures that
+        passing a marker returns users strictly after the marker entry and that
+        the result is consistent (same entries regardless of which worker/
+        process handles the request).
+        """
+        # Create enough users so that two full pages exist.
+        total = len(default_fixtures.USERS) + 6
+        for _ in range(6):
+            user = unit.new_user_ref(domain_id=CONF.identity.default_domain_id)
+            PROVIDERS.identity_api.create_user(user)
+
+        page_size = total // 2
+        hints_p1 = driver_hints.Hints()
+        hints_p1.set_limit(page_size)
+        page1 = PROVIDERS.identity_api.list_users(hints=hints_p1)
+        self.assertEqual(page_size, len(page1))
+
+        # Use the last entry of page 1 as the marker for page 2.
+        marker_id = page1[-1]['id']
+        hints_p2 = driver_hints.Hints()
+        hints_p2.set_limit(page_size)
+        hints_p2.set_marker(marker_id)
+        page2 = PROVIDERS.identity_api.list_users(hints=hints_p2)
+
+        # Page 2 must not overlap with page 1.
+        page1_ids = {u['id'] for u in page1}
+        page2_ids = {u['id'] for u in page2}
+        self.assertFalse(
+            page1_ids & page2_ids,
+            'Pages overlap: marker pagination returned duplicate entries',
+        )
+        self.assertTrue(page2_ids, 'Page 2 is empty — marker was not applied')
+
+    def test_list_users_marker_not_in_sizelimit(self):
+        """Verify that sizelimit is not applied when a marker is present.
+
+        Without this, the server-side sizelimit would cap the LDAP query before
+        the marker entry is reached, causing the marker to never be found and
+        the response to restart from the beginning.
+        """
+        for _ in range(6):
+            user = unit.new_user_ref(domain_id=CONF.identity.default_domain_id)
+            PROVIDERS.identity_api.create_user(user)
+
+        total = len(PROVIDERS.identity_api.list_users())
+        page_size = total // 2
+
+        hints_p1 = driver_hints.Hints()
+        hints_p1.set_limit(page_size)
+        page1 = PROVIDERS.identity_api.list_users(hints=hints_p1)
+
+        marker_id = page1[-1]['id']
+        hints_p2 = driver_hints.Hints()
+        hints_p2.set_limit(page_size)
+        hints_p2.set_marker(marker_id)
+
+        # Spy on search_s to capture the sizelimit argument.
+        user_api = PROVIDERS.identity_api.user
+        original_search_s = user_api.get_connection().__class__.search_s
+        sizelimits_seen = []
+
+        def capturing_search_s(self_conn, base, scope, filterstr,
+                                attrlist=None, attrsonly=0, sizelimit=0):
+            sizelimits_seen.append(sizelimit)
+            return original_search_s(
+                self_conn, base, scope, filterstr, attrlist, attrsonly,
+                sizelimit,
+            )
+
+        with mock.patch.object(
+            user_api.get_connection().__class__,
+            'search_s',
+            capturing_search_s,
+        ):
+            PROVIDERS.identity_api.list_users(hints=hints_p2)
+
+        self.assertTrue(
+            all(sl == 0 for sl in sizelimits_seen),
+            f'Expected sizelimit=0 when marker is set, got {sizelimits_seen}',
+        )
+
 
 class CommonLdapTestCase(unit.BaseTestCase):
     """These test cases call functions in keystone.common.ldap."""

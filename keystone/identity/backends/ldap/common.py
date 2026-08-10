@@ -1835,6 +1835,10 @@ class BaseLdap:
             )
         )
         sizelimit = hints.limit['limit'] if hints and hints.limit else 0
+        # Disable server-side limit when paginating — we need all results to
+        # apply the marker client-side.
+        if hints and hints.marker:
+            sizelimit = 0
 
         with self.get_connection() as conn:
             try:
@@ -1854,7 +1858,19 @@ class BaseLdap:
         # a condition '(!(!(self.attribute_mapping.get('name')=*))' to ldap
         # search query but the repsonse time of the query is pretty slow when
         # compared to explicit filtering by 'name' through ldap result.
-        return self._filter_ldap_result_by_attr(res, 'name')
+        res = self._filter_ldap_result_by_attr(res, 'name')
+
+        if hints and hints.marker:
+            # LDAP has no keyset pagination; apply the marker client-side.
+            id_attr = self.id_attr.lower()
+            for i, obj in enumerate(res):
+                lower_attrs = {k.lower(): v for k, v in obj[1].items()}
+                id_vals = lower_attrs.get(id_attr)
+                if id_vals and id_vals[0] == hints.marker:
+                    res = res[i + 1:]
+                    break
+
+        return res
 
     def _ldap_get_list(
         self,
