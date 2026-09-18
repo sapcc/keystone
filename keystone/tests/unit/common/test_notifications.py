@@ -45,6 +45,9 @@ UPDATED_OPERATION = notifications.ACTIONS.updated
 DELETED_OPERATION = notifications.ACTIONS.deleted
 DISABLED_OPERATION = notifications.ACTIONS.disabled
 
+# CADF action taxonomy uses imperative form (create, delete, update, disable)
+CADF_ACTION_MAP = notifications._CADF_ACTION_MAP
+
 
 class ArbitraryException(Exception):
     pass
@@ -220,7 +223,7 @@ class NotificationsTestCase(unit.BaseTestCase):
         """
         resource_type = EXP_RESOURCE_TYPE
 
-        action = CREATED_OPERATION + '.' + resource_type
+        action = CADF_ACTION_MAP[CREATED_OPERATION] + '/' + resource_type
         initiator = mock
         target = mock
         outcome = 'success'
@@ -241,7 +244,7 @@ class NotificationsTestCase(unit.BaseTestCase):
         """Test that authenticate events are successfully opted out."""
         resource_type = EXP_RESOURCE_TYPE
 
-        action = CREATED_OPERATION + '.' + resource_type
+        action = CADF_ACTION_MAP[CREATED_OPERATION] + '/' + resource_type
         initiator = mock
         target = mock
         outcome = 'success'
@@ -381,7 +384,12 @@ class BaseNotificationTest(test_v3.RestfulTestCase):
         payload = audit['payload']
         if 'resource_info' in payload:
             self.assertEqual(resource_id, payload['resource_info'])
-        action = '.'.join(filter(None, [operation, resource_type]))
+        action = '/'.join(
+            filter(
+                None,
+                [CADF_ACTION_MAP.get(operation, operation), resource_type],
+            )
+        )
         self.assertEqual(action, payload['action'])
         self.assertEqual(target_uri, payload['target']['typeURI'])
         if resource_id:
@@ -416,7 +424,7 @@ class BaseNotificationTest(test_v3.RestfulTestCase):
         self.assertEqual(self.project_id, payload['initiator']['project_id'])
         self.assertEqual(typeURI, payload['target']['typeURI'])
         self.assertIn('request_id', payload['initiator'])
-        action = f'{operation}.{resource_type}'
+        action = f'{CADF_ACTION_MAP.get(operation, operation)}/{resource_type}'
         self.assertEqual(action, payload['action'])
 
     def _assert_notify_not_sent(
@@ -1500,6 +1508,7 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
             target,
             event_type,
             reason=None,
+            attachments=None,
             **kwargs,
         ):
             service_security = cadftaxonomy.SERVICE_SECURITY
@@ -1514,12 +1523,17 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
                 observer=cadfresource.Resource(typeURI=service_security),
             )
 
+            if attachments:
+                for attach in attachments:
+                    event.add_attachment(attach)
+
             for key, value in kwargs.items():
                 setattr(event, key, value)
 
             note = {
                 'action': action,
                 'initiator': initiator,
+                'target': target,
                 'event': event,
                 'event_type': event_type,
                 'send_notification_called': True,
@@ -1558,8 +1572,11 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
     ):
         """Assert that the CADF event is valid.
 
-        In the case of role assignments, the event will have extra data,
-        specifically, the role, target, actor, and if the role is inherited.
+        In the case of role assignments, the event will have extra data
+        stored in CADF-compliant locations:
+        - Scope (project/domain) and actor (user/group) are on the target
+          resource object
+        - Role and inherited_to_projects are in CADF attachments
 
         An example event, as a dictionary is seen below:
             {
@@ -1568,39 +1585,60 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
                     'typeURI': 'service/security/account/user',
                     'host': {'address': 'localhost'},
                     'id': 'openstack:0a90d95d-582c-4efb-9cbc-e2ca7ca9c341',
-                    'username': u'admin'
+                    'name': u'admin'
                 },
                 'target': {
                     'typeURI': 'service/security/account/user',
-                    'id': 'openstack:d48ea485-ef70-4f65-8d2b-01aa9d7ec12d'
+                    'id': 'openstack:d48ea485-ef70-4f65-8d2b-01aa9d7ec12d',
+                    'project_id': '...',
                 },
                 'observer': {
                     'typeURI': 'service/security',
                     'id': 'openstack:d51dd870-d929-4aba-8d75-dcd7555a0c95'
                 },
+                'attachments': [
+                    {'name': 'role_id',
+                     'typeURI': '/data/security/role',
+                     'content': '...'},
+                    {'name': 'inherited_to_projects',
+                     'typeURI': 'xs:boolean',
+                     'content': 'False'}
+                ],
                 'eventType': 'activity',
                 'eventTime': '2014-08-21T21:04:56.204536+0000',
-                'role': u'0e6b990380154a2599ce6b6e91548a68',
-                'domain': u'24bdcff1aab8474895dbaac509793de1',
-                'inherited_to_projects': False,
-                'group': u'c1e22dc67cbd469ea0e33bf428fe597a',
-                'action': 'created.role_assignment',
+                'action': 'create/role_assignment',
                 'outcome': 'success',
                 'id': 'openstack:782689dd-f428-4f13-99c7-5c70f94a5ac1'
             }
         """
         note = self._notifications[-1]
+        target = note['target']
         event = note['event']
+
+        # Check scope on target resource
         if project:
-            self.assertEqual(project, event.project)
+            self.assertEqual(project, target.project_id)
         if domain:
-            self.assertEqual(domain, event.domain)
+            self.assertEqual(domain, target.domain_id)
+
+        # Check actor on target resource (target.id holds user or group)
         if group:
-            self.assertEqual(group, event.group)
+            self.assertEqual(group, target.id)
         elif user:
-            self.assertEqual(user, event.user)
-        self.assertEqual(role_id, event.role)
-        self.assertEqual(inherit, event.inherited_to_projects)
+            self.assertEqual(user, target.id)
+
+        # Check role and inherited in attachments
+        event_dict = event.as_dict()
+        attachments = event_dict.get('attachments', [])
+        attachment_map = {a['name']: a['content'] for a in attachments}
+        self.assertEqual(role_id, attachment_map['role_id'])
+        self.assertEqual(
+            str(inherit).lower(), attachment_map['inherited_to_projects']
+        )
+
+        # Check group attachment exists when group_id is set
+        if group:
+            self.assertEqual(group, attachment_map['group_id'])
 
     def test_initiator_id_always_matches_user_id(self):
         # Clear notifications
@@ -1612,7 +1650,6 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
         note = self._notifications.pop()
         initiator = note['initiator']
         self.assertEqual(self.user_id, initiator.id)
-        self.assertEqual(self.user_id, initiator.user_id)
 
     def test_initiator_always_contains_username(self):
         # Clear notifications
@@ -1623,7 +1660,7 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
         self.assertEqual(len(self._notifications), 1)
         note = self._notifications.pop()
         initiator = note['initiator']
-        self.assertEqual(self.user['name'], initiator.username)
+        self.assertEqual(self.user['name'], initiator.name)
 
     def test_v3_authenticate_user_name_and_domain_id(self):
         user_id = self.user_id
@@ -1659,7 +1696,7 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
 
         # Confirm user-name specific event was emitted.
         self.assertEqual(self.ACTION, note['action'])
-        self.assertEqual(user_id, initiator.user_id)
+        self.assertEqual(user_id, initiator.id)
         self.assertTrue(note['send_notification_called'])
         self.assertEqual(cadftaxonomy.OUTCOME_FAILURE, note['event'].outcome)
         self.assertEqual(self.LOCAL_HOST, initiator.host.address)
@@ -1679,7 +1716,7 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
 
         # Confirm user-name specific event was emitted.
         self.assertEqual(self.ACTION, note['action'])
-        self.assertEqual(user_name, initiator.user_name)
+        self.assertEqual(user_name, initiator.name)
         self.assertEqual(domain_id, initiator.domain_id)
         self.assertTrue(note['send_notification_called'])
         self.assertEqual(cadftaxonomy.OUTCOME_FAILURE, note['event'].outcome)
@@ -1700,12 +1737,12 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
         self, url, role, project=None, domain=None, user=None, group=None
     ):
         self.put(url)
-        action = f"{CREATED_OPERATION}.{self.ROLE_ASSIGNMENT}"
+        action = f"{CADF_ACTION_MAP[CREATED_OPERATION]}/{self.ROLE_ASSIGNMENT}"
         event_type = f'{notifications.SERVICE}.{self.ROLE_ASSIGNMENT}.{CREATED_OPERATION}'
         self._assert_last_note(action, self.user_id, event_type)
         self._assert_event(role, project, domain, user, group)
         self.delete(url)
-        action = f"{DELETED_OPERATION}.{self.ROLE_ASSIGNMENT}"
+        action = f"{CADF_ACTION_MAP[DELETED_OPERATION]}/{self.ROLE_ASSIGNMENT}"
         event_type = f'{notifications.SERVICE}.{self.ROLE_ASSIGNMENT}.{DELETED_OPERATION}'
         self._assert_last_note(action, self.user_id, event_type)
         self._assert_event(role, project, domain, user, None)
@@ -1743,7 +1780,7 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
 
         self.assertTrue(self._notifications)
         note = self._notifications[-1]
-        self.assertEqual('created.role_assignment', note['action'])
+        self.assertEqual('create/role_assignment', note['action'])
         self.assertTrue(note['send_notification_called'])
 
         self._assert_event(self.role_id, project=project_id, user=self.user_id)
@@ -1758,7 +1795,7 @@ class CadfNotificationsWrapperTestCase(test_v3.RestfulTestCase):
 
         self.assertTrue(self._notifications)
         note = self._notifications[-1]
-        self.assertEqual('deleted.role_assignment', note['action'])
+        self.assertEqual('delete/role_assignment', note['action'])
         self.assertTrue(note['send_notification_called'])
 
         self._assert_event(
@@ -1893,7 +1930,7 @@ class CADFNotificationsDataTestCase(test_v3.RestfulTestCase):
             ref['type'] = 'identity'
             PROVIDERS.catalog_api.create_service(ref['id'], ref.copy())
 
-        action = CREATED_OPERATION + '.' + resource_type
+        action = CADF_ACTION_MAP[CREATED_OPERATION] + '/' + resource_type
         initiator = notifications._get_request_audit_info(self.user_id)
         target = cadfresource.Resource(typeURI=cadftaxonomy.ACCOUNT_USER)
         outcome = 'success'

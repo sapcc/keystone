@@ -19,6 +19,7 @@ from pycadf import resource
 
 from keystone.common import driver_hints
 from keystone.common import provider_api
+from keystone.common import utils
 import keystone.conf
 from keystone import exception
 from keystone import notifications
@@ -187,13 +188,15 @@ class BaseUserInfo(provider_api.ProviderAPIMixin):
             audit_initiator = notifications.build_audit_initiator()
             # build an appropriate audit initiator with relevant information
             # for the failed request. This will catch invalid user_name and
-            # invalid user_id.
+            # invalid user_id. Use CADF-compliant fields (id, name) instead
+            # of ad-hoc attributes (user_id, user_name).
             if user_name:
-                audit_initiator.user_name = user_name
+                audit_initiator.name = user_name
             else:
-                audit_initiator.user_id = user_id
+                audit_initiator.id = utils.resource_uuid(user_id)
             audit_initiator.domain_id = domain_ref.get('id')
-            audit_initiator.domain_name = domain_ref.get('name')
+            if domain_ref.get('name'):
+                audit_initiator.domain = domain_ref.get('name')
             notifications._send_audit_notification(
                 action=_NOTIFY_OP,
                 initiator=audit_initiator,
