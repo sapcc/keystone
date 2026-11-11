@@ -16,6 +16,40 @@ git clone https://github.com/sapcc/keystone.git keystone-local-setup
 git switch <branch>
 ```
 
+## Nix development shell
+
+From the repository root, enter the development shell with `nix develop`, or
+run `direnv allow` if you have direnv with Nix flake support enabled.
+The shell provides Python 3.12, uv, a C compiler, OpenLDAP, OpenSSL, memcached,
+the Docker CLI, telnet and xmlsec1. It also creates and activates `.venv` and
+exports the test `OS_*` variables shown below. `flake.lock` pins the Nix tools.
+
+Install the Python dependencies once, and again when requirements change:
+
+```shell
+keystone-install
+```
+
+This installs Keystone in editable mode, the custom requirements, uWSGI,
+PyMySQL and the OpenStack CLI. It uses the same branch-specific constraints as
+`tox.ini`; set `TOX_CONSTRAINTS_FILE` to override the constraints URL or file.
+It also constrains setuptools to `<82` for dependencies that need `pkg_resources`.
+Python dependencies are installed into `.venv` and require network access.
+
+In another development-shell terminal, start memcached in the foreground
+(stop it with Ctrl-C):
+
+```shell
+memcached -l 127.0.0.1 -p 11211 -U 0
+```
+
+Continue with **run config generator or write minimal config** below. The
+MariaDB Docker command requires a running Docker daemon (for example, Docker
+Desktop on macOS). Once the Fernet key directory belongs to your user, run
+`keystone-manage fernet_setup` without `sudo` to use the shell's virtualenv.
+
+## Homebrew setup
+
 **install openldap and memcached:**
 ```shell
 brew install openldap
@@ -59,6 +93,8 @@ export \
 
 uv pip install -r custom-requirements.txt -c https://releases.openstack.org/constraints/upper/master -e . uwsgi pymysql
 ```
+
+## Configure and run Keystone
 
 **run config generator or write minimal config:**
 ```shell

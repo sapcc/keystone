@@ -4,6 +4,7 @@
 vendor
 .ksl-venv
 .venv
+.direnv/
 .update-venv/
 .tox
 keystone.egg-info/
