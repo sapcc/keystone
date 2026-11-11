@@ -59,14 +59,17 @@ def diagnose():
         # condition that they're looking for. When that happens, we need to
         # inform the user by providing some helpful documentation.
         if symptom():
-            # We use this to keep track of our exit condition
-            symptoms_found = True
-
             # Ignore 'H701: empty localization string' because we're definitely
             # passing a string here. Also, we include a line break here to
             # visually separate the symptom's description from any other
             # checks -- it provides a better user experience.
             print(_('\nWARNING: %s') % _(symptom.__doc__))  # noqa: See comment above.
+
+            if (symptom.__name__ in CONF.command.ignore):
+                print(_('Symptom %s is ignored for the exit condition.') % _(symptom.__name__))
+            else:
+                # We use this to keep track of our exit condition
+                symptoms_found = True
 
     return symptoms_found
 

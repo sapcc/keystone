@@ -350,6 +350,13 @@ class Doctor(BaseApp):
     @classmethod
     def add_argument_parser(cls, subparsers):
         parser = super().add_argument_parser(subparsers)
+        parser.add_argument(
+            '--ignore',
+            nargs='?',
+            action='append',
+            default=[],
+            help='Repeatable argument to ignore one or more checks. Checks will still run and report to stdout but if ignored do not cause an non-zero exit code if matched.'
+        )
         return parser
 
     @staticmethod
