@@ -1,8 +1,7 @@
 {
   description = "Keystone local development environment";
 
-  # Keep Intel macOS support, which was removed from nixpkgs 26.11.
-  inputs.nixpkgs.url = "https://channels.nixos.org/nixos-26.05/nixexprs.tar.xz";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
 
   outputs = { nixpkgs, ... }:
     let
