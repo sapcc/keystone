@@ -41,7 +41,6 @@
               uv
               git
               memcached
-              docker-client
               inetutils # telnet, for checking memcached
               xmlsec # xmlsec1, used by pysaml2
               install
