@@ -16,29 +16,31 @@ git clone https://github.com/sapcc/keystone.git keystone-local-setup
 git switch <branch>
 ```
 
-## Nix development shell
+## devenv development shell
 
-Nix provides Python 3.12, tox, Git, a C compiler, OpenLDAP, OpenSSL, SASL,
+devenv provides Python 3.12, tox, Git, a C compiler, OpenLDAP, OpenSSL, SASL,
 PostgreSQL client libraries and build tools, memcached, telnet and xmlsec1.
 It also exports the test `OS_*` variables shown below and preserves the native
-build environment for tox. `flake.lock` pins the Nix tools.
+build environment for tox. `devenv.lock` pins the Nix tools and devenv modules.
 
-From the repository root, enter the development shell:
+With Nix and [devenv](https://devenv.sh/getting-started/) installed, enter the
+development shell from the repository root:
 
 ```shell
-nix develop
+devenv shell
 ```
 
-Alternatively, if you use direnv with Nix flake support, load the Nix
+Alternatively, if you use direnv, load the devenv
 environment in your existing shell:
 
 ```shell
 direnv allow
 ```
 
-Nix only provides the prerequisites; it does not install Python dependencies,
-activate a virtualenv or launch a nested shell. After changes to `flake.nix`,
-run `direnv reload` if you use direnv.
+devenv only provides the prerequisites; it does not install project Python
+dependencies or activate a virtualenv. direnv loads these prerequisites without
+launching a nested shell. After changes to `devenv.nix` or `devenv.yaml`, run
+`direnv reload` if you use direnv.
 
 Run Keystone commands through the `venv` tox environment:
 
@@ -256,7 +258,7 @@ Tox creates separate environments under `.tox` and installs the dependencies
 from `tox.ini`, including `test-requirements.txt` and the custom requirements.
 You do not need to prepare the `venv` environment first for these checks: use
 direnv, or run a command directly, for example
-`nix develop --command tox -e pep8`.
+`devenv shell tox -e pep8`.
 The first run requires network access; pre-commit also downloads its pinned
 hooks. Pre-commit is installed by the `pep8` tox environment, not by Nix.
 
