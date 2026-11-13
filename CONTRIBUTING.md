@@ -47,8 +47,8 @@ tox -e venv -- keystone-manage --help
 tox -e venv -- keystone-status --help
 ```
 
-The first setup requires network access, and subsequent runs 
-reuse the environment and update dependencies when needed. 
+The first setup requires network access, and subsequent runs
+reuse the environment and update dependencies when needed.
 To prepare it without running a command, use `tox -e venv --notest`.
 
 uWSGI and the OpenStack CLI are optional local-running tools, not dependencies
