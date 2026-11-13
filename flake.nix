@@ -7,7 +7,6 @@
     let
       systems = [
         "aarch64-darwin"
-        "x86_64-darwin"
         "aarch64-linux"
         "x86_64-linux"
       ];
@@ -17,36 +16,22 @@
         let
           pkgs = import nixpkgs { inherit system; };
           python = pkgs.python312;
-          # Older OpenStack dependencies still import pkg_resources (see tox.ini).
-          buildConstraints = pkgs.writeText "keystone-build-constraints.txt" ''
-            setuptools<82
-          '';
-          install = pkgs.writeShellApplication {
-            name = "keystone-install";
-            runtimeInputs = [ pkgs.uv pkgs.git ];
-            text = ''
-              exec uv pip install \
-                --python "''${VIRTUAL_ENV:?Enter the Keystone dev shell first}/bin/python" \
-                --requirement custom-requirements.txt \
-                --constraint "$TOX_CONSTRAINTS_FILE" \
-                --build-constraint ${buildConstraints} \
-                --editable . uwsgi pymysql python-openstackclient 'setuptools<82' "$@"
-            '';
-          };
         in
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
               python
-              uv
+              python312Packages.tox
               git
               memcached
               inetutils # telnet, for checking memcached
               xmlsec # xmlsec1, used by pysaml2
-              install
             ];
 
-            nativeBuildInputs = [ pkgs.pkg-config ];
+            nativeBuildInputs = [
+              pkgs.pkg-config
+              pkgs.libpq.pg_config # psycopg2, required by test-requirements.txt
+            ];
             # mkShell supplies the compiler and header/linker flags for native
             # extensions, including python-ldap, scrypt, cffi and uWSGI.
             buildInputs = with pkgs; [
@@ -54,21 +39,15 @@
               openssl
               cyrus_sasl
               libffi
+              libpq
             ];
 
-            UV_PYTHON = python.interpreter;
-            UV_PYTHON_DOWNLOADS = "never";
             PYTHONNOUSERSITE = "1";
 
             shellHook = ''
-              export VIRTUAL_ENV="$PWD/.venv"
-              if [ ! -d "$VIRTUAL_ENV" ]; then
-                uv venv --python "$UV_PYTHON" "$VIRTUAL_ENV"
-              fi
-              export PATH="$VIRTUAL_ENV/bin:$PATH"
-
-              # Match this branch's test environment rather than upstream master.
-              export TOX_CONSTRAINTS_FILE="''${TOX_CONSTRAINTS_FILE:-https://raw.githubusercontent.com/sapcc/requirements/stable/2025.1-m3/upper-constraints.txt}"
+              # Compiler wrappers need their role markers to use the Nix flags.
+              # Apply this to every tox invocation.
+              export TOX_OVERRIDE="''${TOX_OVERRIDE:+$TOX_OVERRIDE;}testenv.passenv+=NIX_CC_WRAPPER_TARGET_*,NIX_BINTOOLS_WRAPPER_TARGET_*,NIX_CFLAGS_COMPILE*,NIX_LDFLAGS*,PKG_CONFIG_PATH,LD_LIBRARY_PATH,PYTHONNOUSERSITE,TOX_OVERRIDE,OS_*"
 
               export OS_AUTH_URL=http://localhost:8000/v3
               export OS_IDENTITY_API_VERSION=3

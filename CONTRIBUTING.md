@@ -18,23 +18,43 @@ git switch <branch>
 
 ## Nix development shell
 
-From the repository root, enter the development shell with `nix develop`, or
-run `direnv allow` if you have direnv with Nix flake support enabled.
-The shell provides Python 3.12, uv, a C compiler, OpenLDAP, OpenSSL, memcached,
-the Docker CLI, telnet and xmlsec1. It also creates and activates `.venv` and
-exports the test `OS_*` variables shown below. `flake.lock` pins the Nix tools.
+Nix provides Python 3.12, tox, Git, a C compiler, OpenLDAP, OpenSSL, SASL,
+PostgreSQL client libraries and build tools, memcached, telnet and xmlsec1.
+It also exports the test `OS_*` variables shown below and preserves the native
+build environment for tox. `flake.lock` pins the Nix tools.
 
-Install the Python dependencies once, and again when requirements change:
+From the repository root, enter the development shell:
 
 ```shell
-keystone-install
+nix develop
 ```
 
-This installs Keystone in editable mode, the custom requirements, uWSGI,
-PyMySQL and the OpenStack CLI. It uses the same branch-specific constraints as
-`tox.ini`; set `TOX_CONSTRAINTS_FILE` to override the constraints URL or file.
-It also constrains setuptools to `<82` for dependencies that need `pkg_resources`.
-Python dependencies are installed into `.venv` and require network access.
+Alternatively, if you use direnv with Nix flake support, load the Nix
+environment in your existing shell:
+
+```shell
+direnv allow
+```
+
+Nix only provides the prerequisites; it does not install Python dependencies,
+activate a virtualenv or launch a nested shell. After changes to `flake.nix`,
+run `direnv reload` if you use direnv.
+
+Run Keystone commands through the `venv` tox environment:
+
+```shell
+tox -e venv -- keystone-manage --help
+tox -e venv -- keystone-status --help
+```
+
+The first setup requires network access, and subsequent runs 
+reuse the environment and update dependencies when needed. 
+To prepare it without running a command, use `tox -e venv --notest`.
+
+uWSGI and the OpenStack CLI are optional local-running tools, not dependencies
+of the existing `venv` environment. The examples below use tox 4's
+`--override` option to add the required tool for that invocation without
+editing `tox.ini`. The Nix shell supplies tox 4.
 
 In another development-shell terminal, start memcached in the foreground
 (stop it with Ctrl-C):
@@ -44,9 +64,10 @@ memcached -l 127.0.0.1 -p 11211 -U 0
 ```
 
 Continue with **run config generator or write minimal config** below. The
-MariaDB Docker command requires a running Docker daemon (for example, Docker
-Desktop on macOS). Once the Fernet key directory belongs to your user, run
-`keystone-manage fernet_setup` without `sudo` to use the shell's virtualenv.
+MariaDB Docker command requires the Docker CLI and a running Docker daemon
+(for example, Docker Desktop on macOS). Once the Fernet key directory belongs
+to your user, run `tox -e venv -- keystone-manage fernet_setup` without `sudo`.
+
 
 ## Homebrew setup
 
@@ -96,9 +117,13 @@ uv pip install -r custom-requirements.txt -c https://releases.openstack.org/cons
 
 ## Configure and run Keystone
 
+The commands below use tox to run inside `.tox/venv` without activating it or
+starting another shell. Python and tox must be available, along with the
+native dependencies provided by the Nix shell or your non-Nix setup.
+
 **run config generator or write minimal config:**
 ```shell
-oslo-config-generator --config-file=config-generator/keystone.conf
+tox -e venv -- oslo-config-generator --config-file=config-generator/keystone.conf
 ```
 you will find a sample config in `etc/etc/keystone.conf.sample`
 
@@ -144,7 +169,7 @@ sudo chown -R <user>:staff /etc/keystone/fernet-keys
 Generate and initialize Fernet keys. Keystone comes with utilities to help you manage Fernet keys. Use the following command to create and distribute the keys:
 
 ```shell
-sudo keystone-manage fernet_setup
+tox -e venv -- keystone-manage fernet_setup
 ```
 
 **Configure Permissions:**
@@ -169,19 +194,20 @@ docker run \
 
 **prepare database:**
 ```shell
-keystone-manage db_sync
+tox -e venv -- keystone-manage db_sync
 ```
 
 
 **add sample data:**
 ```shell
-DISABLE_ENDPOINTS=true KEYSTONE_PORT=8000 ADMIN_PASSWORD=s3cr3t tools/sample_data.sh
+tox -e venv --override 'testenv.deps+=python-openstackclient' -- bash -c \
+  'DISABLE_ENDPOINTS=true KEYSTONE_PORT=8000 ADMIN_PASSWORD=s3cr3t bash tools/sample_data.sh'
 ```
 
 output will look like this:
 
 ```
-DISABLE_ENDPOINTS=true KEYSTONE_PORT=8000 ADMIN_PASSWORD=s3cr3t tools/sample_data.sh
+tox -e venv --override 'testenv.deps+=python-openstackclient' -- bash -c 'DISABLE_ENDPOINTS=true KEYSTONE_PORT=8000 ADMIN_PASSWORD=s3cr3t bash tools/sample_data.sh'
 
 2026-01-06 10:13:37.432 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created domain default
 2026-01-06 10:13:37.501 86703 INFO keystone.cmd.bootstrap [None req-0fa06c44-3bfc-486a-9db5-65cd62e2bd6e - - - - - -] Created project admin
@@ -192,10 +218,9 @@ DISABLE_ENDPOINTS=true KEYSTONE_PORT=8000 ADMIN_PASSWORD=s3cr3t tools/sample_dat
 
 **running the local keystone instance:**
 ```shell
-uwsgi --http 127.0.0.1:8000 --eval "from keystone.server.wsgi import initialize_public_application; application = initialize_public_application()"
-# or use this command to start the server if you are using pyenv
-# otherwise you need to provide the path to the keystone-wsgi-public path
-uwsgi --http 127.0.0.1:8000 --wsgi-file $(pyenv which keystone-wsgi-public)
+tox -e venv --override 'testenv.deps+=uwsgi' -- uwsgi --http 127.0.0.1:8000 --eval "from keystone.server.wsgi import initialize_public_application; application = initialize_public_application()"
+# Or use the WSGI script installed in the tox environment:
+tox -e venv --override 'testenv.deps+=uwsgi' -- uwsgi --http 127.0.0.1:8000 --wsgi-file .tox/venv/bin/keystone-wsgi-public
 ```
 
 **use these test environment vars:**
@@ -212,7 +237,8 @@ OS_USER_DOMAIN_ID=default
 
 **test keystone instance with this command:**
 ```shell
-openstack user list
+tox -e venv --override 'testenv.deps+=python-openstackclient' \
+  --override 'testenv.passenv+=OS_*' -- openstack user list
 ```
 
 the output should look similar to this:
@@ -223,3 +249,80 @@ the output should look similar to this:
 | 786c5d9c6dfe4dd2a08d8156ffaa68e7 | admin |
 +----------------------------------+-------+
 ```
+## Linting, formatting and tests
+
+Run these commands from the repository root with the Nix environment loaded.
+Tox creates separate environments under `.tox` and installs the dependencies
+from `tox.ini`, including `test-requirements.txt` and the custom requirements.
+You do not need to prepare the `venv` environment first for these checks: use
+direnv, or run a command directly, for example
+`nix develop --command tox -e pep8`.
+The first run requires network access; pre-commit also downloads its pinned
+hooks. Pre-commit is installed by the `pep8` tox environment, not by Nix.
+
+### Linting
+
+Run the full lint suite configured in the `pep8` tox environment:
+
+```shell
+tox -e pep8
+```
+
+This runs all hooks in `.pre-commit-config.yaml` (including Ruff, formatting,
+Hacking, Bandit and mypy), followed by Bashate on `devstack/plugin.sh`.
+To run only the pre-commit hooks, prepare the `pep8` environment without running
+its checks, then invoke its pre-commit executable directly. This setup still
+installs the environment's test dependencies:
+
+```shell
+tox -e pep8 --notest
+.tox/pep8/bin/pre-commit run --all-files --show-diff-on-failure
+```
+
+**These checks can modify files.** In particular, the Ruff lint hook enables
+both `--fix` and `--unsafe-fixes`. Review the diff and rerun the checks after
+fixes; pre-commit reports a failure when a hook changes files.
+
+### Formatting
+
+Use the repository's pinned Ruff formatter through pre-commit in the `pep8`
+environment rather than a separately installed version:
+
+```shell
+tox -e pep8 --notest
+.tox/pep8/bin/pre-commit run ruff-format --all-files
+# Or format only specific files:
+.tox/pep8/bin/pre-commit run ruff-format --files keystone/common/utils.py
+```
+
+### Unit tests
+
+Run the unit suite with the shell's Python 3.12:
+
+```shell
+tox -e py312
+```
+
+Pass a test name or regular expression after `--` to run a subset:
+
+```shell
+tox -e py312 -- keystone.tests.unit.test_auth_plugin
+# Limit workers if the full suite uses too much memory:
+tox -e py312 -- --concurrency 2
+```
+
+The default test path is `keystone/tests/unit`, as configured in `.stestr.conf`.
+These tests do not require the locally running Keystone instance described
+below. Database migration tests use opportunistic MySQL/PostgreSQL fixtures
+and may be skipped when suitable databases are unavailable.
+
+For coverage or the protection suite:
+
+```shell
+tox -e cover
+tox -e protection
+```
+
+Coverage reports are written to `cover/`. See
+[`doc/source/contributor/testing-keystone.rst`](doc/source/contributor/testing-keystone.rst)
+for additional testing options.
