@@ -207,9 +207,7 @@ class ProjectsResource(ks_flask.ResourceBase):
             ]
         elif self.oslo_context.domain_id and is_domain_requested:
             domain_id = self.oslo_context.domain_id
-            filtered_refs = [
-                ref for ref in refs if ref['id'] == domain_id
-            ]
+            filtered_refs = [ref for ref in refs if ref['id'] == domain_id]
         else:
             filtered_refs = refs
         return self.wrap_collection(filtered_refs, hints=hints)
