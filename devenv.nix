@@ -39,6 +39,41 @@
     OS_USER_DOMAIN_ID = "default";
   };
 
+  scripts = {
+    keystone-manage.exec = ''
+      exec tox -e venv -- keystone-manage "$@"
+    '';
+
+    keystone-status.exec = ''
+      exec tox -e venv -- keystone-manage "$@"
+    '';
+
+    debugger.exec = ''
+      exec tox -e venv \
+        --override 'testenv.deps+=uwsgi' \
+        --override 'testenv.deps+=debugpy' \
+        -- uwsgi \
+        --http 127.0.0.1:8000 \
+        --master \
+        --processes 1 \
+        --lazy-apps \
+        --enable-threads \
+        --single-interpreter \
+        --eval "import os, debugpy; debugpy.configure(python=os.path.abspath('.tox/venv/bin/python'), subProcess=False); debugpy.listen(('127.0.0.1', 5678)); print('Waiting for Zed on port 5678...', flush=True); debugpy.wait_for_client(); from keystone.server.wsgi import initialize_public_application; application = initialize_public_application()" \
+        "$@"
+    '';
+
+    mariadb.exec = ''
+      exec docker run \
+        --rm \
+        -p 3306:3306 \
+        --hostname keystone-mariadb --name keystone-mariadb \
+        --env MARIADB_USER=keystone --env MARIADB_PASSWORD=keystone --env MARIADB_DATABASE=keystone \
+        --env MARIADB_ROOT_PASSWORD=insecure_slave \
+        mariadb:latest "$@"
+    '';
+  };
+
   enterShell = ''
     # Compiler wrappers need their role markers to use the Nix flags.
     # Apply this to every tox invocation.
