@@ -1,5 +1,20 @@
 { pkgs, lib, ... }:
 
+let
+  # Keep bootstrap credentials and catalog endpoints aligned with the CLI.
+  initializeKeystone = ''
+    set -e
+
+    keystone-manage db_sync
+    keystone-manage bootstrap \
+      --bootstrap-username "$OS_USERNAME" \
+      --bootstrap-password "$OS_PASSWORD" \
+      --bootstrap-project-name "$OS_PROJECT_NAME" \
+      --bootstrap-admin-url "$OS_AUTH_URL" \
+      --bootstrap-public-url "$OS_AUTH_URL" \
+      --bootstrap-internal-url "$OS_AUTH_URL"
+  '';
+in
 {
   name = "keystone";
 
@@ -48,7 +63,21 @@
       exec tox -e venv -- keystone-manage "$@"
     '';
 
-    debugger.exec = ''
+    start.exec = initializeKeystone + ''
+      exec tox -e venv \
+        --override 'testenv.deps+=uwsgi' \
+        -- uwsgi \
+        --http 127.0.0.1:8000 \
+        --master \
+        --processes 1 \
+        --lazy-apps \
+        --enable-threads \
+        --single-interpreter \
+        --module 'keystone.server.wsgi:initialize_public_application()' \
+        "$@"
+    '';
+
+    debugger.exec = initializeKeystone + ''
       exec tox -e venv \
         --override 'testenv.deps+=uwsgi' \
         --override 'testenv.deps+=debugpy' \
