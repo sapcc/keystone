@@ -28,6 +28,9 @@ let
     export TOX_OVERRIDE="''${TOX_OVERRIDE:+$TOX_OVERRIDE;}testenv.passenv+=NIX_CC_WRAPPER_TARGET_*,NIX_BINTOOLS_WRAPPER_TARGET_*,NIX_CFLAGS_COMPILE*,NIX_LDFLAGS*,PKG_CONFIG_PATH,LD_LIBRARY_PATH,PYTHONNOUSERSITE,TOX_OVERRIDE,OS_*"
     # Provision the uv plugin without changing the project's tox configuration.
     export TOX_OVERRIDE="$TOX_OVERRIDE;tox.requires=tox>=4,tox-uv-bare>=1"
+    # Keep the shared venv's dependencies identical for scripts and service tasks.
+    # Removing a per-command dependency recreates it underneath a running uWSGI.
+    export TOX_OVERRIDE="$TOX_OVERRIDE;testenv:venv.deps+=uwsgi;testenv:venv.deps+=debugpy"
   '' + lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
     # PyPI wheels may need the C++ runtime outside Nix's RPATHs.
     export LD_LIBRARY_PATH="${lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -131,7 +134,6 @@ in
 
     start.exec = initializeKeystone + ''
       exec tox -e venv \
-        --override 'testenv.deps+=uwsgi' \
         -- uwsgi \
         --http 127.0.0.1:8000 \
         --master \
@@ -145,8 +147,6 @@ in
 
     debugger.exec = initializeKeystone + ''
       exec tox -e venv \
-        --override 'testenv.deps+=uwsgi' \
-        --override 'testenv.deps+=debugpy' \
         -- uwsgi \
         --http 127.0.0.1:8000 \
         --master \
