@@ -13,10 +13,15 @@
 # under the License.
 
 import base64
+import copy
 import hashlib
 import hmac
 import http.client
+from unittest import mock
 import uuid
+
+from cc.keystone.middleware import lifesaver_utils
+from cc.keystone.middleware import score
 
 from keystone.api import s3tokens
 from keystone.common import provider_api
@@ -25,6 +30,129 @@ from keystone.tests import unit
 from keystone.tests.unit import test_v3
 
 PROVIDERS = provider_api.ProviderAPIs
+
+
+class S3LifesaverCore(test_v3.RestfulTestCase):
+    def config_overrides(self):
+        super().config_overrides()
+        # Only the shared cache transport is faked. Exercise the actual Flask
+        # pipeline, service-token validation and SQL credential lookup.
+        self.scores = {}
+        client = mock.Mock()
+        client.cas_ids = {}
+        client.get.side_effect = lambda key: copy.deepcopy(
+            self.scores.get(key)
+        )
+        client.gets.side_effect = client.get.side_effect
+
+        def store(key, value, *args, **kwargs):
+            self.scores[key] = copy.deepcopy(value)
+            return True
+
+        client.set.side_effect = store
+        client.add.side_effect = store
+        client.cas.side_effect = store
+        patcher = mock.patch.object(
+            lifesaver_utils.memcache, 'Client', return_value=client
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.lifesaver_utils = lifesaver_utils.LifesaverUtils({})
+        self.config_fixture.config(
+            group='lifesaver',
+            enabled='true',
+            initial_credit=10,
+            refill_seconds=600,
+            domain_allowlist='',
+            user_allowlist='',
+        )
+
+    def _missing_credential(self):
+        return {
+            'credentials': {
+                'access': 'missing-access-key',
+                'signature': base64.b64encode(b'invalid').decode('ascii'),
+                'token': base64.b64encode(b'string to sign').decode('ascii'),
+            }
+        }
+
+    def test_missing_s3_key_is_throttled_before_authentication(self):
+        token = self.get_scoped_token()
+        with (
+            mock.patch.object(
+                PROVIDERS.token_provider_api,
+                'validate_token',
+                wraps=PROVIDERS.token_provider_api.validate_token,
+            ) as validate_token,
+            mock.patch.object(
+                PROVIDERS.credential_api,
+                'get_credential',
+                wraps=PROVIDERS.credential_api.get_credential,
+            ) as get_credential,
+        ):
+            self.post(
+                '/s3tokens',
+                token=token,
+                body=self._missing_credential(),
+                expected_status=http.client.NOT_FOUND,
+            )
+            validate_token.assert_called_once()
+            get_credential.assert_called_once()
+            validate_token.reset_mock()
+            get_credential.reset_mock()
+            self.post(
+                '/s3tokens/',
+                token=token,
+                body=self._missing_credential(),
+                expected_status=http.client.TOO_MANY_REQUESTS,
+            )
+            validate_token.assert_not_called()
+            get_credential.assert_not_called()
+
+    def test_exhausted_s3_key_skips_even_invalid_caller_token(self):
+        state = score.Score(10, 600, 5)
+        state.reduce(10)
+        key = self.lifesaver_utils.get_memcache_key(
+            'S3CREDS-MISSING-ACCESS-KEY'
+        )
+        self.scores[key] = state
+        with mock.patch.object(
+            PROVIDERS.token_provider_api,
+            'validate_token',
+            wraps=PROVIDERS.token_provider_api.validate_token,
+        ) as validate_token:
+            self.post(
+                '/s3tokens/',
+                token='invalid-service-token',
+                body=self._missing_credential(),
+                expected_status=http.client.TOO_MANY_REQUESTS,
+            )
+            validate_token.assert_not_called()
+
+    def test_caller_authentication_failure_is_charged_early(self):
+        self.post(
+            '/s3tokens',
+            token='invalid-service-token',
+            body=self._missing_credential(),
+            expected_status=http.client.UNAUTHORIZED,
+        )
+        key = self.lifesaver_utils.get_memcache_key(
+            'S3CREDS-MISSING-ACCESS-KEY'
+        )
+        self.assertIn(key, self.scores)
+        self.assertEqual(0, self.scores[key].get())
+        with mock.patch.object(
+            PROVIDERS.token_provider_api,
+            'validate_token',
+            wraps=PROVIDERS.token_provider_api.validate_token,
+        ) as validate_token:
+            self.post(
+                '/s3tokens',
+                token='invalid-service-token',
+                body=self._missing_credential(),
+                expected_status=http.client.TOO_MANY_REQUESTS,
+            )
+            validate_token.assert_not_called()
 
 
 class S3ContribCore(test_v3.RestfulTestCase):

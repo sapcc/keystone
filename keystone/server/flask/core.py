@@ -157,10 +157,16 @@ def setup_app_middleware(app):
         factory_func = loaded.driver.factory({}, **mw.conf)
         app.wsgi_app = factory_func(app.wsgi_app)
 
-    # Apply internal-only Middleware (e.g. AuthContextMiddleware). These
-    # are below all externally loaded middleware in request processing.
+    # Apply internal-only middleware, with early Lifesaver after URL
+    # normalization and before AuthContext's caller-token validation.
     for mw in reversed(IMW):
         app.wsgi_app = mw(app.wsgi_app)
+        if mw is auth_context.AuthContextMiddleware:
+            loaded = stevedore.DriverManager(
+                'lifesaver.middleware', 'lifesaver', invoke_on_load=False
+            )
+            factory_func = loaded.driver.factory({}, phase='pre_auth')
+            app.wsgi_app = factory_func(app.wsgi_app)
 
     # Apply the middleware to the application.
     for mw in reversed(MW):
