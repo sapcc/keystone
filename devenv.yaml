@@ -1,3 +1,6 @@
+# Keep service ports aligned with the generated Keystone configuration.
+strict_ports: true
+
 inputs:
   nixpkgs:
     url: github:nixos/nixpkgs/nixpkgs-unstable
