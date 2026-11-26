@@ -157,8 +157,8 @@ def setup_app_middleware(app):
         factory_func = loaded.driver.factory({}, **mw.conf)
         app.wsgi_app = factory_func(app.wsgi_app)
 
-    # Apply internal-only middleware, with early Lifesaver after URL
-    # normalization and before AuthContext's caller-token validation.
+    # Run Lifesaver after URL normalization, before AuthContext validates
+    # the caller's token.
     for mw in reversed(IMW):
         app.wsgi_app = mw(app.wsgi_app)
         if mw is auth_context.AuthContextMiddleware:
@@ -166,7 +166,11 @@ def setup_app_middleware(app):
                 'lifesaver.middleware', 'lifesaver', invoke_on_load=False
             )
             factory_func = loaded.driver.factory({}, phase='pre_auth')
-            app.wsgi_app = factory_func(app.wsgi_app)
+            early_lifesaver = factory_func(app.wsgi_app)
+            # Older extensions ignore the phase option. Add this filter only
+            # if the extension supports running before authentication.
+            if getattr(early_lifesaver, 'phase', None) == 'pre_auth':
+                app.wsgi_app = early_lifesaver
 
     # Apply the middleware to the application.
     for mw in reversed(MW):
