@@ -113,7 +113,7 @@ class LifesaverCoreBase(test_v3.RestfulTestCase):
 
     def config_overrides(self):
         super().config_overrides()
-        # Mock Memcached and StatsD only. Use the real Flask middleware,
+        # Mock Memcached only. Use the real Flask middleware,
         # token validation and SQL credential lookup.
         self.scores = {}
         client = mock.Mock()
@@ -130,14 +130,11 @@ class LifesaverCoreBase(test_v3.RestfulTestCase):
         client.set.side_effect = store
         client.add.side_effect = store
         client.cas.side_effect = store
-        for patcher in (
-            mock.patch.object(
-                lifesaver_utils.memcache, 'Client', return_value=client
-            ),
-            mock.patch.object(lifesaver, 'DogStatsd', create=True),
-        ):
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(
+            lifesaver_utils.memcache, 'Client', return_value=client
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.lifesaver_utils = lifesaver_utils.LifesaverUtils({})
         self.config_fixture.config(
             group='lifesaver',
@@ -171,6 +168,20 @@ class LifesaverCoreBase(test_v3.RestfulTestCase):
 
 
 class S3LifesaverCore(LifesaverCoreBase):
+    def _assert_early_rejection(self, path, token):
+        # Lifesaver bypasses the API's shared response-header checks.
+        response = self.public_app.post_json(
+            '/v3' + path,
+            self._missing_credential(),
+            headers={'X-Auth-Token': token},
+            status=http.client.TOO_MANY_REQUESTS,
+        )
+        response.result = response.json
+        self.assertValidErrorResponse(response)
+        self.assertEqual('application/json', response.content_type)
+        self.assertGreater(int(response.headers['Retry-After']), 0)
+        self.assertNotIn('Vary', response.headers)
+
     def test_missing_s3_key_is_throttled_before_authentication(self):
         token = self.get_scoped_token()
         with (
@@ -195,12 +206,7 @@ class S3LifesaverCore(LifesaverCoreBase):
             get_credential.assert_called_once()
             validate_token.reset_mock()
             get_credential.reset_mock()
-            self.post(
-                '/s3tokens/',
-                token=token,
-                body=self._missing_credential(),
-                expected_status=http.client.TOO_MANY_REQUESTS,
-            )
+            self._assert_early_rejection('/s3tokens/', token=token)
             validate_token.assert_not_called()
             get_credential.assert_not_called()
 
@@ -216,11 +222,8 @@ class S3LifesaverCore(LifesaverCoreBase):
             'validate_token',
             wraps=PROVIDERS.token_provider_api.validate_token,
         ) as validate_token:
-            self.post(
-                '/s3tokens/',
-                token='invalid-service-token',
-                body=self._missing_credential(),
-                expected_status=http.client.TOO_MANY_REQUESTS,
+            self._assert_early_rejection(
+                '/s3tokens/', token='invalid-service-token'
             )
             validate_token.assert_not_called()
 
@@ -241,11 +244,8 @@ class S3LifesaverCore(LifesaverCoreBase):
             'validate_token',
             wraps=PROVIDERS.token_provider_api.validate_token,
         ) as validate_token:
-            self.post(
-                '/s3tokens',
-                token='invalid-service-token',
-                body=self._missing_credential(),
-                expected_status=http.client.TOO_MANY_REQUESTS,
+            self._assert_early_rejection(
+                '/s3tokens', token='invalid-service-token'
             )
             validate_token.assert_not_called()
 
